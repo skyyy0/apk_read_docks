@@ -94,16 +94,17 @@ jobs:
           tag_name: ${{ steps.meta.outputs.tag }}
           name: "Lumina Docs v${{ steps.meta.outputs.version }} (Build ${{ github.run_number }})"
           body: |
-            ### Lumina Docs — Universal Liquid-Glass Document Studio
+            ### Lumina Docs — Offline Document Reader, Editor & Converter
             **Developer:** sky | **Package ID:** `com.luminadocs.id`
 
             #### Highlights
-            - Native **PDF** Reader, Annotator (Text, Highlight, Sticky Notes), Page Appender & Multi-PDF Merger
+            - **Material 3 + Restrained Liquid Glass UI**: Clean tonal hierarchy, adaptive `NavigationBar`/`NavigationRail`, Dynamic Color support, and zero-simulation workspace
+            - Native **PDF** Reader, Annotator (Text, Highlight, Sticky Notes), Page Appender/Deleter & Multi-PDF Merger
             - Native **Excel (`.xlsx` / `.csv`)** Editor with live formula engine (`=SUM`, `=AVERAGE`, `=MIN`, `=MAX`, `=COUNT`, `=IF`) & PDF export
             - Native **Word (`.docx`)** Rich Block Editor with Find & Replace & PDF/Markdown/HTML conversion
             - Native **PowerPoint (`.pptx`)** Deck Viewer/Editor & 16:9 PDF export
             - **Markdown / JSON / Code** Editor with live preview & JSON validator
-            - **Settings**: iOS Liquid Glass surfaces, **Power Saving Mode (Mode Hemat Daya)**, Full `.luminabak` Backup & Restore, Cache cleaner
+            - **Settings**: Power Saving Mode (Mode Hemat Daya), True OLED Black mode, Full `.luminabak` Backup & Restore, Cache cleaner
           files: ${{ steps.meta.outputs.apk_file }}
           draft: false
           prerelease: false

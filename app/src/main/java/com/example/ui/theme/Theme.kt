@@ -1,30 +1,31 @@
 package com.example.ui.theme
 
+import android.os.Build
+import android.provider.Settings
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 
 @Immutable
 data class LuminaAppearance(
     val isDark: Boolean,
     val liquidGlassEnabled: Boolean,
     val powerSavingMode: Boolean,
+    val reduceMotion: Boolean,
     val accent: AccentPalette,
-    val canvasTop: Color,
-    val canvasBottom: Color,
-    val glassFill: Color,
-    val glassElevatedFill: Color,
-    val glassSpecularTop: Color,
-    val glassBorder: Color,
-    val capsuleFill: Color,
-    val ambientOrbPrimary: Color,
-    val ambientOrbSecondary: Color,
+    val glassBarFill: Color,
+    val glassSpecularEdge: Color,
+    val glassHairlineBorder: Color,
 )
 
 val LocalLuminaAppearance = staticCompositionLocalOf {
@@ -32,16 +33,11 @@ val LocalLuminaAppearance = staticCompositionLocalOf {
         isDark = false,
         liquidGlassEnabled = true,
         powerSavingMode = false,
+        reduceMotion = false,
         accent = AccentPalette.GLACIER,
-        canvasTop = AlabasterCanvasTop,
-        canvasBottom = AlabasterCanvasBottom,
-        glassFill = Color.White.copy(alpha = 0.78f),
-        glassElevatedFill = Color.White.copy(alpha = 0.90f),
-        glassSpecularTop = Color.White.copy(alpha = 0.95f),
-        glassBorder = Color(0xFF94A3B8).copy(alpha = 0.22f),
-        capsuleFill = Color.White.copy(alpha = 0.86f),
-        ambientOrbPrimary = AccentPalette.GLACIER.lightPrimary.copy(alpha = 0.14f),
-        ambientOrbSecondary = AccentPalette.GLACIER.secondaryLight.copy(alpha = 0.10f),
+        glassBarFill = Color.White.copy(alpha = 0.88f),
+        glassSpecularEdge = Color.White.copy(alpha = 0.95f),
+        glassHairlineBorder = LightOutlineVariant,
     )
 }
 
@@ -54,6 +50,7 @@ fun LuminaDocsTheme(
     oledBlackInPowerSaver: Boolean = true,
     content: @Composable () -> Unit,
 ) {
+    val context = LocalContext.current
     val systemDark = isSystemInDarkTheme()
     val darkTheme = when (themeMode) {
         "LIGHT" -> false
@@ -61,84 +58,109 @@ fun LuminaDocsTheme(
         else -> systemDark
     }
 
+    val systemReduceMotion = remember(context) {
+        runCatching {
+            Settings.Global.getFloat(
+                context.contentResolver,
+                Settings.Global.ANIMATOR_DURATION_SCALE,
+                1f,
+            ) == 0f
+        }.getOrDefault(false)
+    }
+
     val effectiveGlass = liquidGlassEnabled && !powerSavingMode
+    val effectiveReduceMotion = powerSavingMode || systemReduceMotion
     val useOled = darkTheme && powerSavingMode && oledBlackInPowerSaver
 
-    val colorScheme = if (darkTheme) {
-        darkColorScheme(
+    val dynamicScheme = if (accentPalette == AccentPalette.DYNAMIC && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    } else null
+
+    val colorScheme = when {
+        dynamicScheme != null && !useOled -> dynamicScheme
+        dynamicScheme != null && useOled -> dynamicScheme.copy(
+            background = OledPureBlack,
+            surface = OledPureBlack,
+            surfaceContainerLowest = OledPureBlack,
+            surfaceContainerLow = OledSurfaceLow,
+            surfaceContainer = OledSurfaceContainer,
+            surfaceContainerHigh = OledSurfaceHigh,
+            surfaceContainerHighest = DarkSurfaceHigh,
+        )
+        darkTheme -> darkColorScheme(
             primary = accentPalette.darkPrimary,
             onPrimary = Color(0xFF041322),
-            primaryContainer = accentPalette.darkPrimary.copy(alpha = 0.20f),
+            primaryContainer = accentPalette.darkPrimary.copy(alpha = 0.18f),
             onPrimaryContainer = Color(0xFFE0F2FE),
             secondary = accentPalette.secondaryDark,
             onSecondary = Color(0xFF041322),
-            secondaryContainer = accentPalette.secondaryDark.copy(alpha = 0.16f),
+            secondaryContainer = accentPalette.secondaryDark.copy(alpha = 0.15f),
             onSecondaryContainer = Color(0xFFE0F2FE),
-            background = if (useOled) OledPureBlack else ObsidianCanvasTop,
-            onBackground = ObsidianOnSurface,
-            surface = if (useOled) OledElevatedSurface else ObsidianSurface,
-            onSurface = ObsidianOnSurface,
-            surfaceVariant = if (useOled) Color(0xFF141923) else ObsidianSurfaceVariant,
-            onSurfaceVariant = ObsidianOnSurfaceVariant,
-            outline = ObsidianOutline,
-            error = Color(0xFFFF6B6B),
-            onError = Color(0xFF2B0000),
+            background = if (useOled) OledPureBlack else DarkSurface,
+            onBackground = DarkOnSurface,
+            surface = if (useOled) OledPureBlack else DarkSurface,
+            onSurface = DarkOnSurface,
+            surfaceVariant = if (useOled) OledSurfaceContainer else DarkSurfaceContainer,
+            onSurfaceVariant = DarkOnSurfaceVariant,
+            surfaceContainerLowest = if (useOled) OledPureBlack else DarkSurfaceLowest,
+            surfaceContainerLow = if (useOled) OledSurfaceLow else DarkSurfaceLow,
+            surfaceContainer = if (useOled) OledSurfaceContainer else DarkSurfaceContainer,
+            surfaceContainerHigh = if (useOled) OledSurfaceHigh else DarkSurfaceHigh,
+            surfaceContainerHighest = if (useOled) DarkSurfaceHigh else DarkSurfaceHighest,
+            outline = DarkOutline,
+            outlineVariant = DarkOutlineVariant,
+            error = Color(0xFFF87171),
+            onError = Color(0xFF3F0606),
+            errorContainer = Color(0xFF5C1515),
+            onErrorContainer = Color(0xFFFEE2E2),
         )
-    } else {
-        lightColorScheme(
+        else -> lightColorScheme(
             primary = accentPalette.lightPrimary,
             onPrimary = Color.White,
-            primaryContainer = accentPalette.lightPrimary.copy(alpha = 0.13f),
+            primaryContainer = accentPalette.lightPrimary.copy(alpha = 0.12f),
             onPrimaryContainer = accentPalette.lightPrimary,
             secondary = accentPalette.secondaryLight,
             onSecondary = Color.White,
-            secondaryContainer = accentPalette.secondaryLight.copy(alpha = 0.12f),
+            secondaryContainer = accentPalette.secondaryLight.copy(alpha = 0.11f),
             onSecondaryContainer = accentPalette.secondaryLight,
-            background = AlabasterCanvasTop,
-            onBackground = AlabasterOnSurface,
-            surface = AlabasterSurface,
-            onSurface = AlabasterOnSurface,
-            surfaceVariant = AlabasterSurfaceVariant,
-            onSurfaceVariant = AlabasterOnSurfaceVariant,
-            outline = AlabasterOutline,
+            background = LightSurface,
+            onBackground = LightOnSurface,
+            surface = LightSurface,
+            onSurface = LightOnSurface,
+            surfaceVariant = LightSurfaceContainer,
+            onSurfaceVariant = LightOnSurfaceVariant,
+            surfaceContainerLowest = LightSurfaceLowest,
+            surfaceContainerLow = LightSurfaceLow,
+            surfaceContainer = LightSurfaceContainer,
+            surfaceContainerHigh = LightSurfaceHigh,
+            surfaceContainerHighest = LightSurfaceHighest,
+            outline = LightOutline,
+            outlineVariant = LightOutlineVariant,
             error = Color(0xFFDC2626),
             onError = Color.White,
+            errorContainer = Color(0xFFFEE2E2),
+            onErrorContainer = Color(0xFF7F1D1D),
         )
     }
 
-    val appearance = if (darkTheme) {
-        LuminaAppearance(
-            isDark = true,
-            liquidGlassEnabled = effectiveGlass,
-            powerSavingMode = powerSavingMode,
-            accent = accentPalette,
-            canvasTop = if (useOled) OledPureBlack else ObsidianCanvasTop,
-            canvasBottom = if (useOled) OledPureBlack else ObsidianCanvasBottom,
-            glassFill = if (effectiveGlass) Color(0xFF192235).copy(alpha = 0.72f) else if (useOled) OledElevatedSurface else ObsidianSurface,
-            glassElevatedFill = if (effectiveGlass) Color(0xFF202B42).copy(alpha = 0.84f) else if (useOled) Color(0xFF141A26) else ObsidianSurfaceVariant,
-            glassSpecularTop = Color.White.copy(alpha = if (effectiveGlass) 0.18f else 0.08f),
-            glassBorder = Color.White.copy(alpha = if (effectiveGlass) 0.12f else 0.09f),
-            capsuleFill = if (effectiveGlass) Color(0xFF151E30).copy(alpha = 0.88f) else if (useOled) Color(0xFF101520) else ObsidianSurface,
-            ambientOrbPrimary = accentPalette.darkPrimary.copy(alpha = 0.14f),
-            ambientOrbSecondary = accentPalette.secondaryDark.copy(alpha = 0.09f),
-        )
-    } else {
-        LuminaAppearance(
-            isDark = false,
-            liquidGlassEnabled = effectiveGlass,
-            powerSavingMode = powerSavingMode,
-            accent = accentPalette,
-            canvasTop = AlabasterCanvasTop,
-            canvasBottom = if (powerSavingMode) AlabasterCanvasTop else AlabasterCanvasBottom,
-            glassFill = if (effectiveGlass) Color.White.copy(alpha = 0.76f) else Color.White,
-            glassElevatedFill = if (effectiveGlass) Color.White.copy(alpha = 0.90f) else Color.White,
-            glassSpecularTop = Color.White.copy(alpha = if (effectiveGlass) 0.96f else 0.50f),
-            glassBorder = Color(0xFF64748B).copy(alpha = if (effectiveGlass) 0.16f else 0.14f),
-            capsuleFill = if (effectiveGlass) Color.White.copy(alpha = 0.88f) else Color.White,
-            ambientOrbPrimary = accentPalette.lightPrimary.copy(alpha = 0.12f),
-            ambientOrbSecondary = accentPalette.secondaryLight.copy(alpha = 0.09f),
-        )
-    }
+    val appearance = LuminaAppearance(
+        isDark = darkTheme,
+        liquidGlassEnabled = effectiveGlass,
+        powerSavingMode = powerSavingMode,
+        reduceMotion = effectiveReduceMotion,
+        accent = accentPalette,
+        glassBarFill = if (effectiveGlass) {
+            colorScheme.surfaceContainer.copy(alpha = if (darkTheme) 0.84f else 0.88f)
+        } else {
+            colorScheme.surfaceContainerLow
+        },
+        glassSpecularEdge = if (darkTheme) {
+            Color.White.copy(alpha = if (effectiveGlass) 0.13f else 0.06f)
+        } else {
+            Color.White.copy(alpha = if (effectiveGlass) 0.92f else 0.50f)
+        },
+        glassHairlineBorder = colorScheme.outlineVariant,
+    )
 
     CompositionLocalProvider(LocalLuminaAppearance provides appearance) {
         MaterialTheme(

@@ -1,9 +1,9 @@
 package com.example.ui.editors
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -40,10 +41,14 @@ import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.PictureAsPdf
 import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -68,9 +73,9 @@ import androidx.compose.ui.unit.sp
 import com.example.engine.DocBlock
 import com.example.engine.DocBlockStyle
 import com.example.ui.theme.FormatWordColor
-import com.example.ui.theme.GlassFilterPill
+import com.example.ui.theme.GlassToolbarSurface
 import com.example.ui.theme.JetBrainsMonoFamily
-import com.example.ui.theme.LiquidGlassCard
+import com.example.ui.theme.LocalLuminaAppearance
 import com.example.ui.theme.PlusJakartaSansFamily
 import com.example.viewmodel.ActiveEditorState
 
@@ -91,6 +96,13 @@ fun WordEditorScreen(
 ) {
     BackHandler(onBack = onClose)
 
+    val isDark = LocalLuminaAppearance.current.isDark
+    val pageSurfaceColor = if (isDark) {
+        MaterialTheme.colorScheme.surfaceContainerLow
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerLowest
+    }
+
     val selectedBlock = state.richDocument.blocks.firstOrNull { it.id == state.selectedBlockId }
         ?: state.richDocument.blocks.firstOrNull()
 
@@ -104,14 +116,16 @@ fun WordEditorScreen(
             .statusBarsPadding()
             .navigationBarsPadding()
             .imePadding(),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Top Liquid Glass Bar
-        LiquidGlassCard(
+        // Translucent Top Bar
+        GlassToolbarSurface(
             modifier = Modifier
                 .fillMaxWidth()
+                .widthIn(max = 920.dp)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            shape = RoundedCornerShape(22.dp),
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+            shape = RoundedCornerShape(18.dp),
+            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -161,20 +175,21 @@ fun WordEditorScreen(
             }
         }
 
-        // Editorial Document Sheet
-        LiquidGlassCard(
+        // Editorial Document Paper Surface
+        Surface(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
+                .widthIn(max = 840.dp)
                 .padding(horizontal = 12.dp, vertical = 4.dp),
-            elevated = true,
-            shape = RoundedCornerShape(24.dp),
-            contentPadding = PaddingValues(0.dp),
+            shape = RoundedCornerShape(18.dp),
+            color = pageSurfaceColor,
+            border = BorderStroke(0.75.dp, MaterialTheme.colorScheme.outlineVariant),
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 items(state.richDocument.blocks, key = { it.id }) { block ->
                     val isSelected = block.id == selectedBlock?.id
@@ -192,27 +207,27 @@ fun WordEditorScreen(
                     )
                 }
                 item {
-                    Spacer(modifier = Modifier.height(48.dp))
+                    Spacer(modifier = Modifier.height(40.dp))
                 }
             }
         }
 
-        // Floating Rich Formatting Toolbar
-        LiquidGlassCard(
+        // Bottom Rich Formatting Toolbar
+        GlassToolbarSurface(
             modifier = Modifier
                 .fillMaxWidth()
+                .widthIn(max = 920.dp)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            shape = RoundedCornerShape(22.dp),
-            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+            shape = RoundedCornerShape(18.dp),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     items(DocBlockStyle.entries) { style ->
-                        GlassFilterPill(
-                            label = style.label,
+                        FilterChip(
                             selected = selectedBlock?.style == style,
                             onClick = {
                                 selectedBlock?.let { blk ->
@@ -225,6 +240,11 @@ fun WordEditorScreen(
                                     }
                                 }
                             },
+                            label = { Text(style.label, maxLines = 1) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            ),
                         )
                     }
                 }
@@ -234,7 +254,7 @@ fun WordEditorScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         IconButton(
                             onClick = {
                                 selectedBlock?.let { blk ->
@@ -289,26 +309,20 @@ fun WordEditorScreen(
                         }
                     }
 
-                    Row(
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary)
-                            .clickable { onAddBlock(DocBlockStyle.BODY) }
-                            .padding(horizontal = 14.dp, vertical = 9.dp)
-                            .testTag("word_add_block_button"),
-                        verticalAlignment = Alignment.CenterVertically,
+                    Button(
+                        onClick = { onAddBlock(DocBlockStyle.BODY) },
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                        modifier = Modifier.testTag("word_add_block_button"),
                     ) {
                         Icon(
                             Icons.Rounded.Add,
-                            contentDescription = "Insert block",
-                            tint = MaterialTheme.colorScheme.onPrimary,
+                            contentDescription = null,
                             modifier = Modifier.size(17.dp),
                         )
                         Spacer(modifier = Modifier.width(5.dp))
                         Text(
                             text = "Add Block",
                             style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onPrimary,
                         )
                     }
                 }
@@ -376,17 +390,17 @@ private fun WordBlockEditorRow(
 
     val containerMod = Modifier
         .fillMaxWidth()
-        .clip(RoundedCornerShape(14.dp))
+        .clip(RoundedCornerShape(12.dp))
         .background(
             when {
-                block.style == DocBlockStyle.CODE -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
-                isSelected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.06f)
+                block.style == DocBlockStyle.CODE -> MaterialTheme.colorScheme.surfaceContainer
+                isSelected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
                 else -> Color.Transparent
             }
         )
         .then(
             if (isSelected) {
-                Modifier.border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.30f), RoundedCornerShape(14.dp))
+                Modifier.border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.30f), RoundedCornerShape(12.dp))
             } else Modifier
         )
         .padding(horizontal = 10.dp, vertical = 8.dp)
@@ -406,15 +420,18 @@ private fun WordBlockEditorRow(
                 )
             }
             DocBlockStyle.CHECKLIST -> {
-                Icon(
-                    imageVector = if (block.isChecked) Icons.Rounded.CheckBox else Icons.Rounded.CheckBoxOutlineBlank,
-                    contentDescription = "Toggle checklist item",
-                    tint = if (block.isChecked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .padding(end = 10.dp, top = 2.dp)
-                        .size(20.dp)
-                        .clickable(onClick = onToggleCheck),
-                )
+                IconButton(
+                    onClick = onToggleCheck,
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        imageVector = if (block.isChecked) Icons.Rounded.CheckBox else Icons.Rounded.CheckBoxOutlineBlank,
+                        contentDescription = "Toggle checklist item",
+                        tint = if (block.isChecked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                Spacer(modifier = Modifier.width(6.dp))
             }
             DocBlockStyle.QUOTE -> {
                 Box(

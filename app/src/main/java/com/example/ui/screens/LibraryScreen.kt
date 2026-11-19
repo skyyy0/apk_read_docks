@@ -1,7 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -24,7 +24,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
@@ -41,19 +40,25 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarOutline
-import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -63,30 +68,26 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.example.R
 import com.example.data.model.DocumentCategory
 import com.example.data.model.DocumentEntity
 import com.example.data.model.DocumentType
 import com.example.data.model.SortOrder
 import com.example.ui.theme.DocumentFormatBadge
+import com.example.ui.theme.EditorialSectionSurface
 import com.example.ui.theme.FormatExcelColor
 import com.example.ui.theme.FormatMarkdownColor
 import com.example.ui.theme.FormatPdfColor
 import com.example.ui.theme.FormatSlidesColor
 import com.example.ui.theme.FormatWordColor
-import com.example.ui.theme.GlassFilterPill
+import com.example.ui.theme.GlassToolbarSurface
 import com.example.ui.theme.JetBrainsMonoFamily
-import com.example.ui.theme.LiquidGlassCard
 import com.example.ui.theme.LocalLuminaAppearance
 import com.example.viewmodel.LibraryFilterState
 import com.example.viewmodel.formatByteSize
@@ -117,7 +118,7 @@ fun LibraryScreen(
     onShareDocument: (DocumentEntity) -> Unit,
     onDeleteDocument: (DocumentEntity) -> Unit,
 ) {
-    val appearance = LocalLuminaAppearance.current
+    val isDark = LocalLuminaAppearance.current.isDark
     var sortMenuExpanded by remember { mutableStateOf(false) }
     var actionTarget by remember { mutableStateOf<DocumentEntity?>(null) }
     var renameTarget by remember { mutableStateOf<DocumentEntity?>(null) }
@@ -125,18 +126,25 @@ fun LibraryScreen(
 
     val pinnedDocs = remember(allDocuments) { allDocuments.filter { it.isPinned } }
     val totalSize = remember(allDocuments) { allDocuments.sumOf { it.sizeBytes } }
+    val listSurfaceColor = if (isDark) {
+        MaterialTheme.colorScheme.surfaceContainerLow
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerLowest
+    }
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding(),
-        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 112.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 120.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // Brand Header Row
+        // Editorial Workspace Header
         item {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 2.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -151,9 +159,9 @@ fun LibraryScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Row(
                                 modifier = Modifier
-                                    .clip(CircleShape)
-                                    .background(FormatExcelColor.copy(alpha = 0.16f))
-                                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(FormatExcelColor.copy(alpha = 0.14f))
+                                    .padding(horizontal = 7.dp, vertical = 3.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Icon(
@@ -172,161 +180,56 @@ fun LibraryScreen(
                         }
                     }
                     Text(
-                        text = "${allDocuments.size} documents  •  ${formatByteSize(totalSize)}  •  by sky",
+                        text = "${allDocuments.size} documents  •  ${formatByteSize(totalSize)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LiquidGlassCard(
-                        shape = CircleShape,
-                        contentPadding = PaddingValues(10.dp),
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    IconButton(
                         onClick = onToggleFavoritesFilter,
                         modifier = Modifier.testTag("favorites_filter_button"),
                     ) {
                         Icon(
                             imageVector = if (filterState.favoritesOnly) Icons.Rounded.Star else Icons.Rounded.StarOutline,
                             contentDescription = "Filter Favorites",
-                            tint = if (filterState.favoritesOnly) FormatSlidesColor else MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(20.dp),
+                            tint = if (filterState.favoritesOnly) FormatSlidesColor else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    LiquidGlassCard(
-                        shape = CircleShape,
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                    FilledTonalButton(
                         onClick = onImportDeviceFile,
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                         modifier = Modifier.testTag("import_device_button"),
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Rounded.FileOpen,
-                                contentDescription = "Import file from device",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Import",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Signature Liquid Glass Studio Hero Card
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(144.dp)
-                    .clip(RoundedCornerShape(26.dp)),
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.img_hero_liquid_glass_1795071801139),
-                    contentDescription = "Lumina Docs liquid glass workspace banner",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.horizontalGradient(
-                                colors = if (appearance.isDark) {
-                                    listOf(
-                                        Color(0xFF0A1222).copy(alpha = 0.88f),
-                                        Color(0xFF0F1B33).copy(alpha = 0.56f),
-                                    )
-                                } else {
-                                    listOf(
-                                        Color(0xFF0F1E38).copy(alpha = 0.80f),
-                                        Color(0xFF1E3A6D).copy(alpha = 0.42f),
-                                    )
-                                }
-                            )
+                        Icon(
+                            imageVector = Icons.Rounded.FileOpen,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
                         )
-                        .padding(18.dp),
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Column {
-                            Text(
-                                text = "UNIVERSAL STUDIO",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFF93C5FD),
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Read, Edit & Convert Everything",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = Color.White,
-                            )
-                            Text(
-                                text = "PDF  •  Excel XLSX  •  Word DOCX  •  Slides  •  Markdown",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.82f),
-                            )
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(CircleShape)
-                                    .background(Color.White)
-                                    .clickable(onClick = onJumpToCreate)
-                                    .padding(horizontal = 14.dp, vertical = 7.dp)
-                                    .testTag("hero_new_doc_button"),
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Add,
-                                        contentDescription = "New Document",
-                                        tint = Color(0xFF0F172A),
-                                        modifier = Modifier.size(16.dp),
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "New Document",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = Color(0xFF0F172A),
-                                    )
-                                }
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = 0.22f))
-                                    .clickable(onClick = onImportDeviceFile)
-                                    .padding(horizontal = 14.dp, vertical = 7.dp)
-                                    .testTag("hero_open_file_button"),
-                            ) {
-                                Text(
-                                    text = "Open Local File",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = Color.White,
-                                )
-                            }
-                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Open",
+                            style = MaterialTheme.typography.labelLarge,
+                        )
                     }
                 }
             }
         }
 
-        // Frosted Glass Search Pill + Sort Trigger
+        // Restrained Translucent Search Bar + Sort IconButton
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                LiquidGlassCard(
+                GlassToolbarSurface(
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(16.dp),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
                 ) {
                     Row(
@@ -367,7 +270,7 @@ fun LibraryScreen(
                                 contentDescription = "Clear search",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier
-                                    .size(18.dp)
+                                    .size(20.dp)
                                     .clickable { onSearchChange("") },
                             )
                         }
@@ -375,18 +278,21 @@ fun LibraryScreen(
                 }
 
                 Box {
-                    LiquidGlassCard(
-                        shape = RoundedCornerShape(18.dp),
-                        contentPadding = PaddingValues(12.dp),
-                        onClick = { sortMenuExpanded = true },
-                        modifier = Modifier.testTag("sort_menu_button"),
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        border = BorderStroke(0.75.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)),
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Sort,
-                            contentDescription = "Sort documents",
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(20.dp),
-                        )
+                        IconButton(
+                            onClick = { sortMenuExpanded = true },
+                            modifier = Modifier.testTag("sort_menu_button"),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Sort,
+                                contentDescription = "Sort documents",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
                     }
                     DropdownMenu(
                         expanded = sortMenuExpanded,
@@ -411,7 +317,7 @@ fun LibraryScreen(
             }
         }
 
-        // Format Filter Pills Strip
+        // Native M3 Format FilterChips
         item {
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -425,11 +331,31 @@ fun LibraryScreen(
                         DocumentCategory.SLIDES -> FormatSlidesColor
                         DocumentCategory.NOTES -> FormatMarkdownColor
                     }
-                    GlassFilterPill(
-                        label = cat.label,
-                        selected = filterState.category == cat,
-                        leadingDotColor = dotColor,
+                    val selected = filterState.category == cat
+                    FilterChip(
+                        selected = selected,
                         onClick = { onCategorySelect(cat) },
+                        label = {
+                            Text(
+                                text = cat.label,
+                                style = MaterialTheme.typography.labelLarge,
+                                maxLines = 1,
+                            )
+                        },
+                        leadingIcon = if (dotColor != null) {
+                            {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(dotColor),
+                                )
+                            }
+                        } else null,
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        ),
                         modifier = Modifier.testTag("filter_pill_${cat.name.lowercase()}"),
                     )
                 }
@@ -443,6 +369,7 @@ fun LibraryScreen(
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.padding(horizontal = 2.dp),
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.PushPin,
@@ -451,39 +378,43 @@ fun LibraryScreen(
                             modifier = Modifier.size(15.dp),
                         )
                         Text(
-                            text = "Pinned Workspace",
+                            text = "Pinned",
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         items(pinnedDocs, key = { "pin_${it.id}" }) { doc ->
-                            LiquidGlassCard(
-                                modifier = Modifier
-                                    .width(196.dp)
-                                    .testTag("pinned_doc_${doc.id}"),
-                                elevated = true,
-                                shape = RoundedCornerShape(22.dp),
-                                contentPadding = PaddingValues(14.dp),
+                            Surface(
                                 onClick = { onOpenDocument(doc) },
+                                shape = RoundedCornerShape(16.dp),
+                                color = listSurfaceColor,
+                                border = BorderStroke(0.75.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)),
+                                modifier = Modifier
+                                    .width(184.dp)
+                                    .testTag("pinned_doc_${doc.id}"),
                             ) {
-                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
-                                        DocumentFormatBadge(type = doc.docType, size = 40.dp)
+                                        DocumentFormatBadge(type = doc.docType, size = 38.dp)
                                         Text(
                                             text = formatByteSize(doc.sizeBytes),
                                             style = MaterialTheme.typography.labelSmall,
+                                            fontFamily = JetBrainsMonoFamily,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     }
                                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                         Text(
                                             text = doc.title,
-                                            style = MaterialTheme.typography.titleMedium,
+                                            style = MaterialTheme.typography.titleSmall,
                                             color = MaterialTheme.colorScheme.onSurface,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
@@ -492,7 +423,7 @@ fun LibraryScreen(
                                             text = doc.previewSnippet.ifBlank { doc.docType.displayName },
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 2,
+                                            maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
                                         )
                                     }
@@ -507,33 +438,37 @@ fun LibraryScreen(
         // Section Label
         item {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 2.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = if (filterState.category == DocumentCategory.ALL) "All Documents" else "${filterState.category.label} Files",
+                    text = if (filterState.category == DocumentCategory.ALL) "Documents" else "${filterState.category.label} Files",
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
                     text = "${filteredDocuments.size} item(s)",
                     style = MaterialTheme.typography.labelSmall,
+                    fontFamily = JetBrainsMonoFamily,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
 
-        // Empty State or Document Rows
+        // Clean Empty State or Grouped Editorial Document List
         if (filteredDocuments.isEmpty()) {
             item {
-                LiquidGlassCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    contentPadding = PaddingValues(24.dp),
+                EditorialSectionSurface(
+                    shape = RoundedCornerShape(20.dp),
+                    tonalLevel = listSurfaceColor,
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
@@ -541,18 +476,18 @@ fun LibraryScreen(
                             imageVector = Icons.Rounded.FolderOpen,
                             contentDescription = "Empty workspace",
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(42.dp),
+                            modifier = Modifier.size(40.dp),
                         )
                         Text(
-                            text = if (allDocuments.isEmpty()) "Your Workspace is Ready" else "No matching documents",
+                            text = if (allDocuments.isEmpty()) "No Documents Yet" else "No matching documents",
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         Text(
                             text = if (allDocuments.isEmpty()) {
-                                "Open real PDF, Excel, Word, PowerPoint, or Text files from your phone storage, or create a brand-new blank file."
+                                "Open PDF, Excel, Word, PowerPoint, or Text files from storage, or create a clean blank file."
                             } else {
-                                "Try clearing your search or category filter."
+                                "Try clearing your search query or switching category filters."
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -560,33 +495,17 @@ fun LibraryScreen(
                         if (allDocuments.isEmpty()) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.primary)
-                                        .clickable(onClick = onImportDeviceFile)
-                                        .padding(horizontal = 16.dp, vertical = 10.dp)
-                                        .testTag("empty_import_button"),
+                                Button(
+                                    onClick = onImportDeviceFile,
+                                    modifier = Modifier.testTag("empty_import_button"),
                                 ) {
-                                    Text(
-                                        text = "Open File",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.onPrimary,
-                                    )
+                                    Text("Open File")
                                 }
-                                Box(
-                                    modifier = Modifier
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.primaryContainer)
-                                        .clickable(onClick = onJumpToCreate)
-                                        .padding(horizontal = 16.dp, vertical = 10.dp)
-                                        .testTag("empty_create_button"),
+                                OutlinedButton(
+                                    onClick = onJumpToCreate,
+                                    modifier = Modifier.testTag("empty_create_button"),
                                 ) {
-                                    Text(
-                                        text = "Create Blank",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    )
+                                    Text("Create Blank")
                                 }
                             }
                         }
@@ -594,13 +513,29 @@ fun LibraryScreen(
                 }
             }
         } else {
-            items(filteredDocuments, key = { it.id }) { doc ->
-                DocumentListRow(
-                    doc = doc,
-                    onOpen = { onOpenDocument(doc) },
-                    onToggleFavorite = { onToggleFavorite(doc) },
-                    onMoreActions = { actionTarget = doc },
-                )
+            item(key = "grouped_document_list") {
+                EditorialSectionSurface(
+                    shape = RoundedCornerShape(20.dp),
+                    tonalLevel = listSurfaceColor,
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        filteredDocuments.forEachIndexed { index, doc ->
+                            DocumentListRow(
+                                doc = doc,
+                                onOpen = { onOpenDocument(doc) },
+                                onToggleFavorite = { onToggleFavorite(doc) },
+                                onMoreActions = { actionTarget = doc },
+                            )
+                            if (index < filteredDocuments.lastIndex) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(start = 74.dp, end = 14.dp),
+                                    thickness = 0.75.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -610,18 +545,18 @@ fun LibraryScreen(
         ModalBottomSheet(
             onDismissRequest = { actionTarget = null },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.padding(bottom = 8.dp),
+                    modifier = Modifier.padding(bottom = 10.dp),
                 ) {
                     DocumentFormatBadge(type = target.docType, size = 44.dp)
                     Column(modifier = Modifier.weight(1f)) {
@@ -638,7 +573,8 @@ fun LibraryScreen(
                         )
                     }
                 }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 SheetActionRow(Icons.Rounded.PushPin, if (target.isPinned) "Unpin from top" else "Pin to top") {
                     onTogglePin(target)
@@ -680,7 +616,6 @@ fun LibraryScreen(
         }
     }
 
-    // Rename Dialog
     renameTarget?.let { target ->
         AlertDialog(
             onDismissRequest = { renameTarget = null },
@@ -720,85 +655,86 @@ private fun DocumentListRow(
         SimpleDateFormat("MMM d, HH:mm", Locale.US).format(Date(doc.updatedAt))
     }
 
-    LiquidGlassCard(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = onOpen)
+            .padding(start = 14.dp, end = 6.dp, top = 12.dp, bottom = 12.dp)
             .testTag("document_card_${doc.id}"),
-        shape = RoundedCornerShape(20.dp),
-        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-        onClick = onOpen,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            DocumentFormatBadge(type = doc.docType, size = 46.dp)
-            Spacer(modifier = Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = doc.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    if (doc.isPinned) {
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Icon(
-                            imageVector = Icons.Rounded.PushPin,
-                            contentDescription = "Pinned",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(13.dp),
-                        )
-                    }
-                }
+        DocumentFormatBadge(type = doc.docType, size = 44.dp)
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = doc.previewSnippet.ifBlank { doc.fileName },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = doc.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        text = formatByteSize(doc.sizeBytes),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontFamily = JetBrainsMonoFamily,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = "•",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline,
-                    )
-                    Text(
-                        text = dateLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                if (doc.isPinned) {
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Icon(
+                        imageVector = Icons.Rounded.PushPin,
+                        contentDescription = "Pinned",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(13.dp),
                     )
                 }
             }
-            IconButton(onClick = onToggleFavorite) {
-                Icon(
-                    imageVector = if (doc.isFavorite) Icons.Rounded.Star else Icons.Rounded.StarOutline,
-                    contentDescription = "Toggle favorite",
-                    tint = if (doc.isFavorite) FormatSlidesColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp),
+            Text(
+                text = doc.previewSnippet.ifBlank { doc.fileName },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = formatByteSize(doc.sizeBytes),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = JetBrainsMonoFamily,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = "•",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+                Text(
+                    text = dateLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            IconButton(onClick = onMoreActions) {
-                Icon(
-                    imageVector = Icons.Rounded.MoreVert,
-                    contentDescription = "More options for ${doc.title}",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
+        }
+        IconButton(
+            onClick = onToggleFavorite,
+            modifier = Modifier.minimumInteractiveComponentSize(),
+        ) {
+            Icon(
+                imageVector = if (doc.isFavorite) Icons.Rounded.Star else Icons.Rounded.StarOutline,
+                contentDescription = "Toggle favorite",
+                tint = if (doc.isFavorite) FormatSlidesColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        IconButton(
+            onClick = onMoreActions,
+            modifier = Modifier.minimumInteractiveComponentSize(),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.MoreVert,
+                contentDescription = "More options for ${doc.title}",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }
@@ -813,7 +749,7 @@ private fun SheetActionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,

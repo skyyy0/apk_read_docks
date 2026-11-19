@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.GridOn
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Numbers
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material.icons.rounded.SystemUpdateAlt
@@ -37,6 +39,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -45,6 +50,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
@@ -53,10 +59,10 @@ import androidx.compose.ui.unit.sp
 import com.example.BuildConfig
 import com.example.data.prefs.UserSettings
 import com.example.ui.theme.AccentPalette
+import com.example.ui.theme.EditorialSectionSurface
 import com.example.ui.theme.FormatExcelColor
-import com.example.ui.theme.GlassFilterPill
 import com.example.ui.theme.JetBrainsMonoFamily
-import com.example.ui.theme.LiquidGlassCard
+import com.example.ui.theme.LocalLuminaAppearance
 import com.example.viewmodel.formatByteSize
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -93,76 +99,120 @@ fun SettingsScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .statusBarsPadding(),
-        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 112.dp),
+            .statusBarsPadding()
+            .testTag("settings_list"),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Column {
+            Column(modifier = Modifier.padding(horizontal = 2.dp)) {
                 Text(
                     text = "Settings",
                     style = MaterialTheme.typography.headlineMedium,
                     color = MaterialTheme.colorScheme.onBackground,
                 )
                 Text(
-                    text = "Appearance, Power Saving Mode, Backup & App Information",
+                    text = "Theme, Power Saving Mode, Backup & App Information",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
 
-        // 1. Appearance & Liquid Glass
+        // 1. Appearance & Material 3 Dynamic Color
         item {
-            SettingsGroup(title = "APPEARANCE & LIQUID GLASS") {
+            SettingsGroup(title = "APPEARANCE") {
                 Text(
                     text = "Theme Mode",
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("SYSTEM" to "System", "LIGHT" to "Light", "DARK" to "Dark").forEach { (key, label) ->
-                        GlassFilterPill(
-                            label = label,
+                val themeOptions = listOf("SYSTEM" to "System", "LIGHT" to "Light", "DARK" to "Dark")
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    themeOptions.forEachIndexed { index, (key, label) ->
+                        SegmentedButton(
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = themeOptions.size),
                             selected = settings.themeMode == key,
                             onClick = { onThemeModeChange(key) },
                             modifier = Modifier.testTag("theme_mode_${key.lowercase()}"),
-                        )
+                        ) {
+                            Text(label, maxLines = 1)
+                        }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
+                val palettes = remember {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        AccentPalette.entries
+                    } else {
+                        AccentPalette.entries.filter { it != AccentPalette.DYNAMIC }
+                    }
+                }
                 Text(
-                    text = "Accent Palette",
+                    text = "Accent Palette (${AccentPalette.fromKey(settings.accentKey).label})",
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    AccentPalette.entries.forEach { palette ->
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    palettes.forEach { palette ->
                         val selected = settings.accentKey == palette.key
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(48.dp)
                                 .clip(CircleShape)
-                                .background(palette.lightPrimary)
-                                .border(
-                                    width = if (selected) 3.dp else 1.dp,
-                                    color = if (selected) MaterialTheme.colorScheme.onSurface else Color.White.copy(alpha = 0.4f),
-                                    shape = CircleShape,
-                                )
                                 .clickable { onAccentChange(palette.key) }
                                 .testTag("accent_${palette.key.lowercase()}"),
                             contentAlignment = Alignment.Center,
                         ) {
-                            if (selected) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Check,
-                                    contentDescription = palette.label,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(18.dp),
-                                )
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .then(
+                                        if (palette == AccentPalette.DYNAMIC) {
+                                            Modifier.background(
+                                                Brush.sweepGradient(
+                                                    listOf(
+                                                        Color(0xFF0A66C2),
+                                                        Color(0xFF059669),
+                                                        Color(0xFFD97706),
+                                                        Color(0xFF7C3AED),
+                                                        Color(0xFF0A66C2),
+                                                    )
+                                                )
+                                            )
+                                        } else {
+                                            Modifier.background(palette.lightPrimary)
+                                        }
+                                    )
+                                    .border(
+                                        width = if (selected) 2.5.dp else 1.dp,
+                                        color = if (selected) MaterialTheme.colorScheme.onSurface else Color.White.copy(alpha = 0.45f),
+                                        shape = CircleShape,
+                                    ),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (selected) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Check,
+                                        contentDescription = "${palette.label} selected",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                } else if (palette == AccentPalette.DYNAMIC) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Palette,
+                                        contentDescription = "Material You Dynamic Color",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                }
                             }
                         }
                     }
@@ -172,11 +222,11 @@ fun SettingsScreen(
 
                 SettingsToggleRow(
                     icon = Icons.Rounded.AutoAwesome,
-                    title = "Liquid Glass Surfaces",
+                    title = "Translucent Glass Bars",
                     subtitle = if (settings.powerSavingMode) {
                         "Paused automatically while Power Saving Mode is active"
                     } else {
-                        "Frosted translucent cards with specular refraction borders"
+                        "Subtle frosted tint & specular hairline on toolbars and navigation bar"
                     },
                     checked = settings.liquidGlassEnabled,
                     onCheckedChange = onLiquidGlassToggle,
@@ -192,7 +242,7 @@ fun SettingsScreen(
                     icon = Icons.Rounded.BatterySaver,
                     iconTint = FormatExcelColor,
                     title = "Power Saving Mode (Mode Hemat Daya)",
-                    subtitle = "Lowers PDF render DPI to 1.25x, calms animations & reduces GPU overdraw",
+                    subtitle = "Lowers PDF render DPI to 1.25x, reduces motion & limits GPU overdraw",
                     checked = settings.powerSavingMode,
                     onCheckedChange = onPowerSavingToggle,
                     testTag = "toggle_power_saving",
@@ -201,7 +251,7 @@ fun SettingsScreen(
                 SettingsToggleRow(
                     icon = Icons.Rounded.DarkMode,
                     title = "True OLED Black in Power Saver",
-                    subtitle = "Uses pure #000000 canvas in Dark Mode when Power Saving is on",
+                    subtitle = "Uses pure #000000 canvas in Dark Mode when Power Saving is active",
                     checked = settings.oledBlackInPowerSaver,
                     onCheckedChange = onOledBlackToggle,
                     testTag = "toggle_oled_black",
@@ -230,7 +280,7 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
                             Text(
-                                text = "Currently using ${formatByteSize(cacheSizeBytes)}",
+                                text = "Using ${formatByteSize(cacheSizeBytes)}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -238,7 +288,7 @@ fun SettingsScreen(
                     }
                     OutlinedButton(
                         onClick = onClearCache,
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.testTag("clear_cache_button"),
                     ) {
                         Text("Clear")
@@ -256,7 +306,7 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text = "Packs all $documentCount local document(s), PDF annotations, bookmarks & preferences into one portable backup file.",
+                    text = "Packs all $documentCount local document(s), PDF annotations, bookmarks & preferences into one portable archive.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -278,7 +328,7 @@ fun SettingsScreen(
                             .weight(1f)
                             .height(48.dp)
                             .testTag("export_backup_button"),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(14.dp),
                     ) {
                         Icon(Icons.Rounded.Backup, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
@@ -290,7 +340,7 @@ fun SettingsScreen(
                             .weight(1f)
                             .height(48.dp)
                             .testTag("restore_backup_button"),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(14.dp),
                     ) {
                         Icon(Icons.Rounded.Restore, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
@@ -336,7 +386,7 @@ fun SettingsScreen(
                 SettingsToggleRow(
                     icon = Icons.Rounded.Save,
                     title = "Auto-Save on Exit",
-                    subtitle = "Automatically saves & syncs unsaved edits when leaving any editor",
+                    subtitle = "Automatically saves & syncs unsaved edits when leaving an editor",
                     checked = settings.autoSaveEnabled,
                     onCheckedChange = onAutoSaveToggle,
                     testTag = "toggle_auto_save",
@@ -345,7 +395,7 @@ fun SettingsScreen(
                 SettingsToggleRow(
                     icon = Icons.Rounded.DarkMode,
                     title = "PDF Night-Ink Invert by Default",
-                    subtitle = "Automatically open PDFs with eye-friendly dark page inversion",
+                    subtitle = "Open PDFs with eye-friendly dark page inversion",
                     checked = settings.pdfNightInvertDefault,
                     onCheckedChange = onPdfNightDefaultToggle,
                     testTag = "toggle_pdf_night_default",
@@ -381,7 +431,7 @@ fun SettingsScreen(
                 InfoRow(Icons.Rounded.AutoAwesome, "Package ID", BuildConfig.APPLICATION_ID)
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "Upgrade-Safe Architecture: Consistent Package ID & signing preserve your local documents and settings seamlessly across updates without uninstalling.",
+                    text = "Upgrade-Safe Architecture: Consistent Package ID & release signing preserve your local documents and settings across updates without uninstalling.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -395,19 +445,29 @@ private fun SettingsGroup(
     title: String,
     content: @Composable () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val isDark = LocalLuminaAppearance.current.isDark
+    val groupColor = if (isDark) {
+        MaterialTheme.colorScheme.surfaceContainerLow
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerLowest
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
             text = title,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 6.dp),
+            modifier = Modifier.padding(horizontal = 4.dp),
         )
-        LiquidGlassCard(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(22.dp),
-            contentPadding = PaddingValues(16.dp),
+        EditorialSectionSurface(
+            shape = RoundedCornerShape(20.dp),
+            tonalLevel = groupColor,
         ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+            ) {
                 content()
             }
         }
@@ -487,6 +547,7 @@ private fun InfoRow(icon: ImageVector, label: String, value: String) {
 private fun SettingsDivider() {
     HorizontalDivider(
         modifier = Modifier.padding(vertical = 12.dp),
-        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
+        thickness = 0.75.dp,
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
     )
 }

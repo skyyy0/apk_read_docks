@@ -1,6 +1,7 @@
 package com.example.ui.editors
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -33,7 +35,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Edit
@@ -42,11 +43,17 @@ import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.PictureAsPdf
 import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -58,7 +65,6 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -67,12 +73,13 @@ import com.example.engine.DocBlockStyle
 import com.example.engine.JsonValidationResult
 import com.example.engine.TextDocumentEngine
 import com.example.engine.WordDocumentEngine
+import com.example.ui.theme.EditorialSectionSurface
 import com.example.ui.theme.FormatExcelColor
 import com.example.ui.theme.FormatMarkdownColor
 import com.example.ui.theme.FormatSlidesColor
-import com.example.ui.theme.GlassFilterPill
+import com.example.ui.theme.GlassToolbarSurface
 import com.example.ui.theme.JetBrainsMonoFamily
-import com.example.ui.theme.LiquidGlassCard
+import com.example.ui.theme.LocalLuminaAppearance
 import com.example.viewmodel.ActiveEditorState
 
 @Composable
@@ -89,6 +96,13 @@ fun SlidesEditorScreen(
 ) {
     BackHandler(onBack = onClose)
 
+    val isDark = LocalLuminaAppearance.current.isDark
+    val sectionColor = if (isDark) {
+        MaterialTheme.colorScheme.surfaceContainerLow
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerLowest
+    }
+
     val slide = state.deck.slides.getOrNull(state.activeSlideIndex) ?: state.deck.slides.first()
     val bulletsJoined = remember(slide.id, slide.bullets) { slide.bullets.joinToString("\n") }
 
@@ -98,14 +112,16 @@ fun SlidesEditorScreen(
             .statusBarsPadding()
             .navigationBarsPadding()
             .imePadding(),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Top Bar
-        LiquidGlassCard(
+        // Translucent Top Bar
+        GlassToolbarSurface(
             modifier = Modifier
                 .fillMaxWidth()
+                .widthIn(max = 920.dp)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            shape = RoundedCornerShape(22.dp),
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+            shape = RoundedCornerShape(18.dp),
+            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
         ) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onClose, modifier = Modifier.testTag("editor_back_button")) {
@@ -140,6 +156,8 @@ fun SlidesEditorScreen(
         Column(
             modifier = Modifier
                 .weight(1f)
+                .fillMaxWidth()
+                .widthIn(max = 860.dp)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 14.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -149,13 +167,13 @@ fun SlidesEditorScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(16f / 9f)
-                    .clip(RoundedCornerShape(22.dp))
+                    .clip(RoundedCornerShape(18.dp))
                     .background(
                         Brush.linearGradient(
                             listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF0F294A))
                         )
                     )
-                    .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(22.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(18.dp))
                     .padding(20.dp),
             ) {
                 Column(
@@ -196,12 +214,14 @@ fun SlidesEditorScreen(
             }
 
             // Slide Content Editor Form
-            LiquidGlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(22.dp),
-                contentPadding = PaddingValues(16.dp),
+            EditorialSectionSurface(
+                shape = RoundedCornerShape(18.dp),
+                tonalLevel = sectionColor,
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     OutlinedTextField(
                         value = slide.title,
                         onValueChange = { onUpdateSlide(it, bulletsJoined, slide.speakerNotes) },
@@ -228,27 +248,32 @@ fun SlidesEditorScreen(
         }
 
         // Slide Deck Strip
-        LiquidGlassCard(
+        GlassToolbarSurface(
             modifier = Modifier
                 .fillMaxWidth()
+                .widthIn(max = 920.dp)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            shape = RoundedCornerShape(22.dp),
-            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+            shape = RoundedCornerShape(18.dp),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 LazyRow(
                     modifier = Modifier.weight(1f),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     itemsIndexed(state.deck.slides) { idx, _ ->
-                        GlassFilterPill(
-                            label = "Slide ${idx + 1}",
+                        FilterChip(
                             selected = idx == state.activeSlideIndex,
                             onClick = { onSelectSlide(idx) },
+                            label = { Text("Slide ${idx + 1}", maxLines = 1) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            ),
                         )
                     }
                 }
@@ -256,16 +281,17 @@ fun SlidesEditorScreen(
                     enabled = state.deck.slides.size > 1,
                     onClick = onDeleteSlide,
                 ) {
-                    Icon(Icons.Rounded.DeleteOutline, contentDescription = "Delete slide", tint = MaterialTheme.colorScheme.error)
+                    Icon(
+                        Icons.Rounded.DeleteOutline,
+                        contentDescription = "Delete slide",
+                        tint = MaterialTheme.colorScheme.error,
+                    )
                 }
-                Box(
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary)
-                        .clickable(onClick = onAddSlide)
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                ) {
-                    Icon(Icons.Rounded.Add, contentDescription = "Add slide", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(18.dp))
+                FilledTonalIconButton(onClick = onAddSlide) {
+                    Icon(
+                        Icons.Rounded.Add,
+                        contentDescription = "Add slide",
+                    )
                 }
             }
         }
@@ -287,6 +313,13 @@ fun TextEditorScreen(
 ) {
     BackHandler(onBack = onClose)
 
+    val isDark = LocalLuminaAppearance.current.isDark
+    val editorSurfaceColor = if (isDark) {
+        MaterialTheme.colorScheme.surfaceContainerLow
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerLowest
+    }
+
     val isJson = state.document.docType == DocumentType.JSON
     val isMarkdown = state.document.docType == DocumentType.MARKDOWN
     val wordCount = remember(state.content) { TextDocumentEngine.countWords(state.content) }
@@ -300,14 +333,16 @@ fun TextEditorScreen(
             .statusBarsPadding()
             .navigationBarsPadding()
             .imePadding(),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Top Bar
-        LiquidGlassCard(
+        // Translucent Top Bar
+        GlassToolbarSurface(
             modifier = Modifier
                 .fillMaxWidth()
+                .widthIn(max = 920.dp)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            shape = RoundedCornerShape(22.dp),
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+            shape = RoundedCornerShape(18.dp),
+            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
         ) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onClose, modifier = Modifier.testTag("editor_back_button")) {
@@ -355,143 +390,155 @@ fun TextEditorScreen(
 
         // JSON Validator & Pretty-Print Strip
         if (isJson && jsonStatus != null) {
-            Row(
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 4.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(
-                        if (jsonStatus is JsonValidationResult.Valid) FormatExcelColor.copy(alpha = 0.14f)
-                        else MaterialTheme.colorScheme.error.copy(alpha = 0.14f)
-                    )
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .widthIn(max = 920.dp)
+                    .padding(horizontal = 12.dp, vertical = 2.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = if (jsonStatus is JsonValidationResult.Valid) {
+                    FormatExcelColor.copy(alpha = 0.14f)
+                } else {
+                    MaterialTheme.colorScheme.errorContainer
+                },
             ) {
                 Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Icon(
-                        imageVector = if (jsonStatus is JsonValidationResult.Valid) Icons.Rounded.CheckCircle else Icons.Rounded.ErrorOutline,
-                        contentDescription = null,
-                        tint = if (jsonStatus is JsonValidationResult.Valid) FormatExcelColor else MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Text(
-                        text = if (jsonStatus is JsonValidationResult.Valid) "Valid JSON" else (jsonStatus as JsonValidationResult.Invalid).message,
-                        style = MaterialTheme.typography.labelMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                if (jsonStatus is JsonValidationResult.Valid) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "Format",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.clickable { onContentChange(jsonStatus.formatted) },
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(
+                            imageVector = if (jsonStatus is JsonValidationResult.Valid) Icons.Rounded.CheckCircle else Icons.Rounded.ErrorOutline,
+                            contentDescription = null,
+                            tint = if (jsonStatus is JsonValidationResult.Valid) FormatExcelColor else MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(16.dp),
                         )
                         Text(
-                            text = "Minify",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.clickable { onContentChange(jsonStatus.minified) },
+                            text = if (jsonStatus is JsonValidationResult.Valid) "Valid JSON" else (jsonStatus as JsonValidationResult.Invalid).message,
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
+                    }
+                    if (jsonStatus is JsonValidationResult.Valid) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(
+                                text = "Format",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .minimumInteractiveComponentSize()
+                                    .clickable { onContentChange(jsonStatus.formatted) },
+                            )
+                            Text(
+                                text = "Minify",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .minimumInteractiveComponentSize()
+                                    .clickable { onContentChange(jsonStatus.minified) },
+                            )
+                        }
                     }
                 }
             }
         }
 
         // Editor or Live Markdown Preview Area
-        LiquidGlassCard(
+        Surface(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
+                .widthIn(max = 860.dp)
                 .padding(horizontal = 12.dp, vertical = 4.dp),
-            elevated = true,
-            shape = RoundedCornerShape(22.dp),
-            contentPadding = PaddingValues(16.dp),
+            shape = RoundedCornerShape(18.dp),
+            color = editorSurfaceColor,
+            border = BorderStroke(0.75.dp, MaterialTheme.colorScheme.outlineVariant),
         ) {
-            if (isMarkdown && state.previewMode) {
-                val parsed = remember(state.content) { WordDocumentEngine.fromMarkdown(state.content) }
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    items(parsed.blocks, key = { it.id }) { blk ->
-                        when (blk.style) {
-                            DocBlockStyle.HEADING1 -> Text(blk.text, style = MaterialTheme.typography.headlineSmall)
-                            DocBlockStyle.HEADING2 -> Text(blk.text, style = MaterialTheme.typography.titleLarge)
-                            DocBlockStyle.HEADING3 -> Text(blk.text, style = MaterialTheme.typography.titleMedium)
-                            DocBlockStyle.BULLET -> Text("•  ${blk.text}", fontSize = fontSizeSp.sp)
-                            DocBlockStyle.CHECKLIST -> Text(
-                                text = (if (blk.isChecked) "[✓]  " else "[ ]  ") + blk.text,
-                                fontSize = fontSizeSp.sp,
-                                color = if (blk.isChecked) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                            )
-                            DocBlockStyle.QUOTE -> Row {
-                                Box(
+            Box(modifier = Modifier.padding(16.dp)) {
+                if (isMarkdown && state.previewMode) {
+                    val parsed = remember(state.content) { WordDocumentEngine.fromMarkdown(state.content) }
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        items(parsed.blocks, key = { it.id }) { blk ->
+                            when (blk.style) {
+                                DocBlockStyle.HEADING1 -> Text(blk.text, style = MaterialTheme.typography.headlineSmall)
+                                DocBlockStyle.HEADING2 -> Text(blk.text, style = MaterialTheme.typography.titleLarge)
+                                DocBlockStyle.HEADING3 -> Text(blk.text, style = MaterialTheme.typography.titleMedium)
+                                DocBlockStyle.BULLET -> Text("•  ${blk.text}", fontSize = fontSizeSp.sp)
+                                DocBlockStyle.CHECKLIST -> Text(
+                                    text = (if (blk.isChecked) "[✓]  " else "[ ]  ") + blk.text,
+                                    fontSize = fontSizeSp.sp,
+                                    color = if (blk.isChecked) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                                )
+                                DocBlockStyle.QUOTE -> Row {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(3.dp)
+                                            .height(22.dp)
+                                            .background(MaterialTheme.colorScheme.primary),
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(blk.text, fontStyle = FontStyle.Italic, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                DocBlockStyle.CODE -> Box(
                                     modifier = Modifier
-                                        .width(3.dp)
-                                        .height(22.dp)
-                                        .background(MaterialTheme.colorScheme.primary),
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(blk.text, fontStyle = FontStyle.Italic, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            DocBlockStyle.CODE -> Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    .padding(12.dp),
-                            ) {
-                                Text(blk.text, fontFamily = JetBrainsMonoFamily, fontSize = 13.sp)
-                            }
-                            DocBlockStyle.BODY -> Text(blk.text, fontSize = fontSizeSp.sp, lineHeight = (fontSizeSp * 1.5f).sp)
-                        }
-                    }
-                }
-            } else {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState()),
-                ) {
-                    if (showLineNumbers) {
-                        val lineCount = state.content.lines().size.coerceAtLeast(1)
-                        Column(
-                            modifier = Modifier.padding(end = 12.dp),
-                            horizontalAlignment = Alignment.End,
-                        ) {
-                            for (i in 1..lineCount) {
-                                Text(
-                                    text = "$i",
-                                    fontFamily = JetBrainsMonoFamily,
-                                    fontSize = (fontSizeSp - 2).coerceAtLeast(11).sp,
-                                    lineHeight = (fontSizeSp * 1.48f).sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
-                                )
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceContainer)
+                                        .padding(12.dp),
+                                ) {
+                                    Text(blk.text, fontFamily = JetBrainsMonoFamily, fontSize = 13.sp)
+                                }
+                                DocBlockStyle.BODY -> Text(blk.text, fontSize = fontSizeSp.sp, lineHeight = (fontSizeSp * 1.5f).sp)
                             }
                         }
                     }
-                    BasicTextField(
-                        value = state.content,
-                        onValueChange = onContentChange,
-                        textStyle = TextStyle(
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = (fontSizeSp - 1).coerceAtLeast(11).sp,
-                            lineHeight = (fontSizeSp * 1.48f).sp,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        ),
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                } else {
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .testTag("text_editor_body"),
-                    )
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState()),
+                    ) {
+                        if (showLineNumbers) {
+                            val lineCount = state.content.lines().size.coerceAtLeast(1)
+                            Column(
+                                modifier = Modifier.padding(end = 12.dp),
+                                horizontalAlignment = Alignment.End,
+                            ) {
+                                for (i in 1..lineCount) {
+                                    Text(
+                                        text = "$i",
+                                        fontFamily = JetBrainsMonoFamily,
+                                        fontSize = (fontSizeSp - 2).coerceAtLeast(11).sp,
+                                        lineHeight = (fontSizeSp * 1.48f).sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                                    )
+                                }
+                            }
+                        }
+                        BasicTextField(
+                            value = state.content,
+                            onValueChange = onContentChange,
+                            textStyle = TextStyle(
+                                fontFamily = JetBrainsMonoFamily,
+                                fontSize = (fontSizeSp - 1).coerceAtLeast(11).sp,
+                                lineHeight = (fontSizeSp * 1.48f).sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("text_editor_body"),
+                        )
+                    }
                 }
             }
         }
@@ -499,8 +546,11 @@ fun TextEditorScreen(
         // Quick Markdown Formatting Bar
         if (isMarkdown && !state.previewMode) {
             LazyRow(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 920.dp)
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 val snippets = listOf(
                     "H1" to "\n# ",
@@ -512,15 +562,16 @@ fun TextEditorScreen(
                     "Code" to "\n```\n\n```\n",
                 )
                 items(snippets) { (label, snippet) ->
-                    Box(
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f))
-                            .clickable { onContentChange(state.content + snippet) }
-                            .padding(horizontal = 12.dp, vertical = 7.dp),
-                    ) {
-                        Text(label, style = MaterialTheme.typography.labelLarge, fontFamily = JetBrainsMonoFamily)
-                    }
+                    SuggestionChip(
+                        onClick = { onContentChange(state.content + snippet) },
+                        label = {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontFamily = JetBrainsMonoFamily,
+                            )
+                        },
+                    )
                 }
             }
         }

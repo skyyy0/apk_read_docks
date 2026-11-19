@@ -2,6 +2,7 @@ package com.example.ui.editors
 
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,17 +18,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -50,12 +50,16 @@ import androidx.compose.material.icons.rounded.ZoomIn
 import androidx.compose.material.icons.rounded.ZoomOut
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -71,6 +75,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
@@ -80,12 +85,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.engine.PdfEngine
-import com.example.ui.theme.FormatExcelColor
-import com.example.ui.theme.FormatPdfColor
 import com.example.ui.theme.FormatSlidesColor
-import com.example.ui.theme.GlassFilterPill
+import com.example.ui.theme.GlassToolbarSurface
 import com.example.ui.theme.JetBrainsMonoFamily
-import com.example.ui.theme.LiquidGlassCard
 import com.example.viewmodel.ActiveEditorState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -112,7 +114,7 @@ fun PdfEditorScreen(
     var pageBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var isRendering by remember { mutableStateOf(true) }
     var zoomScale by remember { mutableFloatStateOf(1f) }
-    var activeTool by remember { mutableStateOf<String?>(null) } // "TEXT", "HIGHLIGHT", "NOTE"
+    var activeTool by remember { mutableStateOf<String?>(null) }
     var pendingPlacement by remember { mutableStateOf<Pair<Float, Float>?>(null) }
     var annotationText by remember { mutableStateOf("") }
     var showAddPageDialog by remember { mutableStateOf(false) }
@@ -159,14 +161,16 @@ fun PdfEditorScreen(
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding(),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Liquid Glass Top Editor Bar
-        LiquidGlassCard(
+        // Translucent Top Editor Toolbar
+        GlassToolbarSurface(
             modifier = Modifier
                 .fillMaxWidth()
+                .widthIn(max = 920.dp)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            shape = RoundedCornerShape(22.dp),
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+            shape = RoundedCornerShape(18.dp),
+            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -222,43 +226,53 @@ fun PdfEditorScreen(
 
         // Active Annotation Tool Banner
         if (activeTool != null) {
-            Row(
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer)
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .widthIn(max = 920.dp)
+                    .padding(horizontal = 12.dp, vertical = 2.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
             ) {
-                Text(
-                    text = "Tap anywhere on the PDF page to place $activeTool",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
-                Icon(
-                    imageVector = Icons.Rounded.Close,
-                    contentDescription = "Cancel placement",
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier
-                        .size(18.dp)
-                        .clickable { activeTool = null },
-                )
+                Row(
+                    modifier = Modifier.padding(start = 14.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = "Tap anywhere on the page to place $activeTool",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                    IconButton(onClick = { activeTool = null }) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Cancel placement",
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
+                }
             }
         }
 
         // Bookmarks Quick Jump Row
         if (state.bookmarks.isNotEmpty()) {
             LazyRow(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 920.dp)
+                    .padding(horizontal = 14.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 items(state.bookmarks, key = { it.id }) { bm ->
-                    GlassFilterPill(
-                        label = bm.label,
+                    FilterChip(
                         selected = bm.targetIndex == state.currentPage,
                         onClick = { onPageChange(bm.targetIndex) },
+                        label = { Text(bm.label) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        ),
                     )
                 }
             }
@@ -269,8 +283,9 @@ fun PdfEditorScreen(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
+                .widthIn(max = 880.dp)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .padding(horizontal = 14.dp, vertical = 6.dp),
             contentAlignment = Alignment.Center,
         ) {
             val bmp = pageBitmap
@@ -286,9 +301,9 @@ fun PdfEditorScreen(
                             scaleX = zoomScale
                             scaleY = zoomScale
                         }
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(12.dp))
                         .background(if (state.nightInvert) Color(0xFF0F172A) else Color.White)
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(14.dp))
+                        .border(0.75.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
                         .pointerInput(activeTool) {
                             detectTapGestures { offset ->
                                 if (activeTool != null && size.width > 0 && size.height > 0) {
@@ -313,7 +328,7 @@ fun PdfEditorScreen(
                         val bgColor = when (ann.kind) {
                             "HIGHLIGHT" -> Color(0x99FDE047)
                             "NOTE" -> Color(0xFFFEF08A)
-                            else -> Color.White.copy(alpha = 0.88f)
+                            else -> Color.White.copy(alpha = 0.90f)
                         }
                         val textColor = when (ann.kind) {
                             "NOTE" -> Color(0xFF422006)
@@ -354,15 +369,16 @@ fun PdfEditorScreen(
             }
         }
 
-        // Bottom Liquid Glass PDF Studio Controls
-        LiquidGlassCard(
+        // Bottom Translucent PDF Studio Controls
+        GlassToolbarSurface(
             modifier = Modifier
                 .fillMaxWidth()
+                .widthIn(max = 920.dp)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            shape = RoundedCornerShape(24.dp),
-            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+            shape = RoundedCornerShape(20.dp),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -380,12 +396,13 @@ fun PdfEditorScreen(
                             style = MaterialTheme.typography.labelLarge,
                             fontFamily = JetBrainsMonoFamily,
                             modifier = Modifier
+                                .minimumInteractiveComponentSize()
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable {
                                     jumpPageInput = "${state.currentPage + 1}"
                                     showJumpPageDialog = true
                                 }
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
                         )
                         IconButton(
                             enabled = state.currentPage < state.pageCount - 1,
@@ -465,7 +482,6 @@ fun PdfEditorScreen(
         }
     }
 
-    // Jump to Page Dialog
     if (showJumpPageDialog) {
         AlertDialog(
             onDismissRequest = { showJumpPageDialog = false },
@@ -492,7 +508,6 @@ fun PdfEditorScreen(
         )
     }
 
-    // Annotation Input Dialog
     pendingPlacement?.let { (nx, ny) ->
         val kind = activeTool ?: "TEXT"
         AlertDialog(
@@ -528,7 +543,6 @@ fun PdfEditorScreen(
         )
     }
 
-    // Append New PDF Page Dialog
     if (showAddPageDialog) {
         AlertDialog(
             onDismissRequest = { showAddPageDialog = false },
@@ -569,35 +583,34 @@ fun PdfEditorScreen(
 
 @Composable
 private fun PdfToolChip(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
     testTag: String,
 ) {
-    Row(
-        modifier = Modifier
-            .clip(CircleShape)
-            .background(
-                if (selected) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        leadingIcon = {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
             )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-            .testTag(testTag),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(16.dp),
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-        )
-    }
+        },
+        label = {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+            )
+        },
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        ),
+        modifier = Modifier.testTag(testTag),
+    )
 }

@@ -15,7 +15,7 @@ private val Context.luminaDataStore by preferencesDataStore(name = "lumina_setti
 
 data class UserSettings(
     val themeMode: String = "SYSTEM", // SYSTEM, LIGHT, DARK
-    val accentKey: String = "GLACIER", // GLACIER, EMERALD, AMETHYST, AMBER
+    val accentKey: String = "GLACIER", // DYNAMIC, GLACIER, EMERALD, AMETHYST, AMBER
     val liquidGlassEnabled: Boolean = true,
     val powerSavingMode: Boolean = false,
     val oledBlackInPowerSaver: Boolean = true,

@@ -22,12 +22,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.MergeType
-import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -48,13 +50,14 @@ import com.example.data.model.DocumentCategory
 import com.example.data.model.DocumentEntity
 import com.example.data.model.DocumentType
 import com.example.ui.theme.DocumentFormatBadge
+import com.example.ui.theme.EditorialSectionSurface
 import com.example.ui.theme.FormatExcelColor
 import com.example.ui.theme.FormatMarkdownColor
 import com.example.ui.theme.FormatPdfColor
 import com.example.ui.theme.FormatSlidesColor
 import com.example.ui.theme.FormatWordColor
-import com.example.ui.theme.GlassFilterPill
-import com.example.ui.theme.LiquidGlassCard
+import com.example.ui.theme.JetBrainsMonoFamily
+import com.example.ui.theme.LocalLuminaAppearance
 import com.example.viewmodel.formatByteSize
 
 @Composable
@@ -63,6 +66,13 @@ fun ToolsHubScreen(
     onConvertDocument: (DocumentEntity, DocumentType) -> Unit,
     onMergePdfs: (List<DocumentEntity>, String) -> Unit,
 ) {
+    val isDark = LocalLuminaAppearance.current.isDark
+    val sectionColor = if (isDark) {
+        MaterialTheme.colorScheme.surfaceContainerLow
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerLowest
+    }
+
     val convertibleDocs = remember(allDocuments) {
         allDocuments.filter { it.docType != DocumentType.PDF }
     }
@@ -96,18 +106,18 @@ fun ToolsHubScreen(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding(),
-        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 112.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 120.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
-            Column {
+            Column(modifier = Modifier.padding(horizontal = 2.dp)) {
                 Text(
                     text = "Document Lab",
                     style = MaterialTheme.typography.headlineMedium,
                     color = MaterialTheme.colorScheme.onBackground,
                 )
                 Text(
-                    text = "Universal format conversion, PDF merging & workspace inspector",
+                    text = "Offline format conversion, PDF merging & workspace breakdown",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -116,13 +126,14 @@ fun ToolsHubScreen(
 
         // 1. Universal Format Converter
         item {
-            LiquidGlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                elevated = true,
-                shape = RoundedCornerShape(24.dp),
-                contentPadding = PaddingValues(18.dp),
+            EditorialSectionSurface(
+                shape = RoundedCornerShape(20.dp),
+                tonalLevel = sectionColor,
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -139,7 +150,7 @@ fun ToolsHubScreen(
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
                             Text(
-                                text = "Convert Word, Excel, Slides, Markdown or CSV natively offline",
+                                text = "Convert Word, Excel, Slides, Markdown or CSV offline",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -148,22 +159,31 @@ fun ToolsHubScreen(
 
                     if (convertibleDocs.isEmpty()) {
                         Text(
-                            text = "Create or import a Word, Excel, Slides, or Markdown file first.",
+                            text = "Open or create a Word, Excel, Slides, or Markdown file first.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     } else {
                         Text(
-                            text = "1. Select source file",
+                            text = "1. Source file",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(convertibleDocs, key = { it.id }) { doc ->
-                                GlassFilterPill(
-                                    label = "${doc.title.take(18)} (${doc.docType.shortBadge})",
+                                FilterChip(
                                     selected = doc.id == selectedSourceId,
                                     onClick = { selectedSourceId = doc.id },
+                                    label = {
+                                        Text(
+                                            text = "${doc.title.take(18)} (${doc.docType.shortBadge})",
+                                            maxLines = 1,
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    ),
                                 )
                             }
                         }
@@ -176,10 +196,14 @@ fun ToolsHubScreen(
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 availableTargets.forEach { format ->
-                                    GlassFilterPill(
-                                        label = format.shortBadge,
+                                    FilterChip(
                                         selected = targetType == format,
                                         onClick = { targetType = format },
+                                        label = { Text(format.shortBadge) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        ),
                                     )
                                 }
                             }
@@ -192,7 +216,7 @@ fun ToolsHubScreen(
                                     .fillMaxWidth()
                                     .height(48.dp)
                                     .testTag("convert_now_button"),
-                                shape = RoundedCornerShape(16.dp),
+                                shape = RoundedCornerShape(14.dp),
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.SwapHoriz,
@@ -210,13 +234,14 @@ fun ToolsHubScreen(
 
         // 2. Multi-PDF Merger
         item {
-            LiquidGlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                elevated = true,
-                shape = RoundedCornerShape(24.dp),
-                contentPadding = PaddingValues(18.dp),
+            EditorialSectionSurface(
+                shape = RoundedCornerShape(20.dp),
+                tonalLevel = sectionColor,
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -233,7 +258,7 @@ fun ToolsHubScreen(
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
                             Text(
-                                text = "Combine 2 or more PDF files into one crisp document",
+                                text = "Combine 2 or more PDF files into one document",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -242,35 +267,37 @@ fun ToolsHubScreen(
 
                     if (pdfDocs.size < 2) {
                         Text(
-                            text = "You currently have ${pdfDocs.size} PDF file(s). Convert any document to PDF or create another PDF to merge.",
+                            text = "You have ${pdfDocs.size} PDF file(s). Convert any file to PDF or open another PDF to merge.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            pdfDocs.forEach { pdf ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow),
+                        ) {
+                            pdfDocs.forEachIndexed { idx, pdf ->
                                 val checked = selectedPdfIds.contains(pdf.id)
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .background(
-                                            if (checked) MaterialTheme.colorScheme.primaryContainer
-                                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                        )
                                         .clickable {
                                             if (checked) selectedPdfIds.remove(pdf.id) else selectedPdfIds.add(pdf.id)
                                         }
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                        .padding(horizontal = 8.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 ) {
-                                    Icon(
-                                        imageVector = if (checked) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
-                                        contentDescription = null,
-                                        tint = if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    Checkbox(
+                                        checked = checked,
+                                        onCheckedChange = {
+                                            if (checked) selectedPdfIds.remove(pdf.id) else selectedPdfIds.add(pdf.id)
+                                        },
                                     )
                                     DocumentFormatBadge(type = DocumentType.PDF, size = 34.dp)
+                                    Spacer(modifier = Modifier.width(4.dp))
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = pdf.title,
@@ -281,9 +308,17 @@ fun ToolsHubScreen(
                                         Text(
                                             text = "${pdf.pageCount} page(s) • ${formatByteSize(pdf.sizeBytes)}",
                                             style = MaterialTheme.typography.labelSmall,
+                                            fontFamily = JetBrainsMonoFamily,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     }
+                                }
+                                if (idx < pdfDocs.lastIndex) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(start = 52.dp, end = 12.dp),
+                                        thickness = 0.75.dp,
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
+                                    )
                                 }
                             }
                         }
@@ -307,7 +342,7 @@ fun ToolsHubScreen(
                                 .fillMaxWidth()
                                 .height(48.dp)
                                 .testTag("merge_pdfs_button"),
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(14.dp),
                         ) {
                             Text("Merge ${selectedPdfIds.size} Selected PDFs")
                         }
@@ -318,12 +353,14 @@ fun ToolsHubScreen(
 
         // 3. Workspace Storage & Format Inspector
         item {
-            LiquidGlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                contentPadding = PaddingValues(18.dp),
+            EditorialSectionSurface(
+                shape = RoundedCornerShape(20.dp),
+                tonalLevel = sectionColor,
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -360,7 +397,7 @@ fun ToolsHubScreen(
                             .fillMaxWidth()
                             .height(10.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                     ) {
                         segments.forEach { (_, bytes, color) ->
                             val frac = (bytes.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
@@ -394,6 +431,7 @@ fun ToolsHubScreen(
                                 Text(
                                     text = formatByteSize(bytes),
                                     style = MaterialTheme.typography.labelSmall,
+                                    fontFamily = JetBrainsMonoFamily,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }

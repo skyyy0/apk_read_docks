@@ -11,28 +11,39 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddBox
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Handyman
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AddBox
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Handyman
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.DocumentEntity
@@ -57,11 +69,12 @@ import com.example.ui.screens.LibraryScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.ToolsHubScreen
 import com.example.ui.theme.AccentPalette
-import com.example.ui.theme.FloatingGlassNavBar
-import com.example.ui.theme.LiquidGlassBackdrop
 import com.example.ui.theme.LocalLuminaAppearance
+import com.example.ui.theme.LuminaBottomNavigationBar
 import com.example.ui.theme.LuminaDocsTheme
 import com.example.ui.theme.LuminaNavDestination
+import com.example.ui.theme.LuminaNavigationRail
+import com.example.ui.theme.LuminaWorkspaceCanvas
 import com.example.viewmodel.ActiveEditorState
 import com.example.viewmodel.LuminaViewModel
 
@@ -122,6 +135,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun LuminaAppRoot(viewModel: LuminaViewModel) {
     val context = LocalContext.current
+    val appearance = LocalLuminaAppearance.current
     val allDocuments by viewModel.allDocuments.collectAsStateWithLifecycle()
     val filteredDocuments by viewModel.filteredDocuments.collectAsStateWithLifecycle()
     val filterState by viewModel.filterState.collectAsStateWithLifecycle()
@@ -140,7 +154,6 @@ private fun LuminaAppRoot(viewModel: LuminaViewModel) {
         }
     }
 
-    // Zero-permission SAF launchers
     val importFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -211,200 +224,249 @@ private fun LuminaAppRoot(viewModel: LuminaViewModel) {
         )
     }
 
-    LiquidGlassBackdrop {
-        Scaffold(
-            containerColor = Color.Transparent,
-            snackbarHost = {
-                SnackbarHost(
-                    hostState = snackbarHostState,
-                    modifier = Modifier
-                        .navigationBarsPadding()
-                        .padding(bottom = if (editorState is ActiveEditorState.None) 86.dp else 12.dp),
-                )
-            },
-        ) { _ ->
-            Box(modifier = Modifier.fillMaxSize()) {
-                when (val active = editorState) {
-                    is ActiveEditorState.None -> {
-                        AnimatedContent(
-                            targetState = currentTab,
-                            transitionSpec = { fadeIn() togetherWith fadeOut() },
-                            label = "mainTabTransition",
-                        ) { tab ->
-                            when (tab) {
-                                "library" -> LibraryScreen(
-                                    allDocuments = allDocuments,
-                                    filteredDocuments = filteredDocuments,
-                                    filterState = filterState,
-                                    powerSavingMode = settings.powerSavingMode,
-                                    onSearchChange = viewModel::setSearchQuery,
-                                    onCategorySelect = viewModel::setCategory,
-                                    onSortChange = viewModel::setSortOrder,
-                                    onToggleFavoritesFilter = viewModel::toggleFavoritesFilter,
-                                    onOpenDocument = viewModel::openDocument,
-                                    onImportDeviceFile = launchImport,
-                                    onJumpToCreate = { currentTab = "create" },
-                                    onRenameDocument = viewModel::renameDocument,
-                                    onDuplicateDocument = viewModel::duplicateDocument,
-                                    onTogglePin = viewModel::togglePinned,
-                                    onToggleFavorite = viewModel::toggleFavorite,
-                                    onConvertToPdf = { doc -> viewModel.convertDocument(doc, DocumentType.PDF) },
-                                    onExportDocument = { doc ->
-                                        pendingExportDoc = doc
-                                        exportDocLauncher.launch(doc.fileName)
-                                    },
-                                    onShareDocument = shareDocument,
-                                    onDeleteDocument = viewModel::deleteDocument,
-                                )
-                                "create" -> CreateHubScreen(
-                                    onCreateBlank = viewModel::createBlankAndOpen,
-                                    onImportSingleFile = launchImport,
-                                    onImportMultipleFiles = launchBatchImport,
-                                )
-                                "tools" -> ToolsHubScreen(
-                                    allDocuments = allDocuments,
-                                    onConvertDocument = { doc, target -> viewModel.convertDocument(doc, target) },
-                                    onMergePdfs = viewModel::mergePdfDocuments,
-                                )
-                                else -> SettingsScreen(
-                                    settings = settings,
-                                    cacheSizeBytes = cacheSizeBytes,
-                                    documentCount = allDocuments.size,
-                                    onThemeModeChange = viewModel::setThemeMode,
-                                    onAccentChange = viewModel::setAccentKey,
-                                    onLiquidGlassToggle = viewModel::setLiquidGlass,
-                                    onPowerSavingToggle = viewModel::setPowerSavingMode,
-                                    onOledBlackToggle = viewModel::setOledBlackInPowerSaver,
-                                    onFontSizeChange = viewModel::setEditorFontSize,
-                                    onAutoSaveToggle = viewModel::setAutoSave,
-                                    onPdfNightDefaultToggle = viewModel::setPdfNightInvertDefault,
-                                    onGridlinesToggle = viewModel::setShowGridlines,
-                                    onLineNumbersToggle = viewModel::setShowLineNumbers,
-                                    onExportBackup = {
-                                        backupExportLauncher.launch("LuminaDocs_Backup_${System.currentTimeMillis()}.luminabak")
-                                    },
-                                    onRestoreBackup = {
-                                        backupRestoreLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
-                                    },
-                                    onClearCache = viewModel::clearCache,
-                                )
+    val onNavSelect: (String) -> Unit = { route ->
+        currentTab = route
+        if (route == "settings") viewModel.refreshCacheSize()
+    }
+
+    LuminaWorkspaceCanvas {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val isExpandedWidth = maxWidth >= 600.dp
+
+            Scaffold(
+                containerColor = Color.Transparent,
+                snackbarHost = {
+                    SnackbarHost(
+                        hostState = snackbarHostState,
+                        modifier = Modifier.navigationBarsPadding(),
+                    )
+                },
+                bottomBar = {
+                    if (editorState is ActiveEditorState.None && !isExpandedWidth) {
+                        LuminaBottomNavigationBar(
+                            destinations = destinations,
+                            selectedRoute = currentTab,
+                            onSelect = onNavSelect,
+                        )
+                    }
+                },
+                floatingActionButton = {
+                    if (editorState is ActiveEditorState.None && currentTab == "library") {
+                        ExtendedFloatingActionButton(
+                            onClick = { currentTab = "create" },
+                            icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
+                            text = { Text("New File") },
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.testTag("library_fab_new"),
+                        )
+                    }
+                },
+            ) { _ ->
+                Box(modifier = Modifier.fillMaxSize()) {
+                    when (val active = editorState) {
+                        is ActiveEditorState.None -> {
+                            Row(modifier = Modifier.fillMaxSize()) {
+                                if (isExpandedWidth) {
+                                    LuminaNavigationRail(
+                                        destinations = destinations,
+                                        selectedRoute = currentTab,
+                                        onSelect = onNavSelect,
+                                        modifier = Modifier.fillMaxHeight(),
+                                    )
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight(),
+                                    contentAlignment = Alignment.TopCenter,
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .widthIn(max = 840.dp)
+                                            .fillMaxHeight(),
+                                    ) {
+                                        AnimatedContent(
+                                            targetState = currentTab,
+                                            transitionSpec = {
+                                                if (appearance.reduceMotion) {
+                                                    EnterTransition.None togetherWith ExitTransition.None
+                                                } else {
+                                                    fadeIn() togetherWith fadeOut()
+                                                }
+                                            },
+                                            label = "mainTabTransition",
+                                        ) { tab ->
+                                            when (tab) {
+                                                "library" -> LibraryScreen(
+                                                    allDocuments = allDocuments,
+                                                    filteredDocuments = filteredDocuments,
+                                                    filterState = filterState,
+                                                    powerSavingMode = settings.powerSavingMode,
+                                                    onSearchChange = viewModel::setSearchQuery,
+                                                    onCategorySelect = viewModel::setCategory,
+                                                    onSortChange = viewModel::setSortOrder,
+                                                    onToggleFavoritesFilter = viewModel::toggleFavoritesFilter,
+                                                    onOpenDocument = viewModel::openDocument,
+                                                    onImportDeviceFile = launchImport,
+                                                    onJumpToCreate = { currentTab = "create" },
+                                                    onRenameDocument = viewModel::renameDocument,
+                                                    onDuplicateDocument = viewModel::duplicateDocument,
+                                                    onTogglePin = viewModel::togglePinned,
+                                                    onToggleFavorite = viewModel::toggleFavorite,
+                                                    onConvertToPdf = { doc -> viewModel.convertDocument(doc, DocumentType.PDF) },
+                                                    onExportDocument = { doc ->
+                                                        pendingExportDoc = doc
+                                                        exportDocLauncher.launch(doc.fileName)
+                                                    },
+                                                    onShareDocument = shareDocument,
+                                                    onDeleteDocument = viewModel::deleteDocument,
+                                                )
+                                                "create" -> CreateHubScreen(
+                                                    onCreateBlank = viewModel::createBlankAndOpen,
+                                                    onImportSingleFile = launchImport,
+                                                    onImportMultipleFiles = launchBatchImport,
+                                                )
+                                                "tools" -> ToolsHubScreen(
+                                                    allDocuments = allDocuments,
+                                                    onConvertDocument = { doc, target -> viewModel.convertDocument(doc, target) },
+                                                    onMergePdfs = viewModel::mergePdfDocuments,
+                                                )
+                                                else -> SettingsScreen(
+                                                    settings = settings,
+                                                    cacheSizeBytes = cacheSizeBytes,
+                                                    documentCount = allDocuments.size,
+                                                    onThemeModeChange = viewModel::setThemeMode,
+                                                    onAccentChange = viewModel::setAccentKey,
+                                                    onLiquidGlassToggle = viewModel::setLiquidGlass,
+                                                    onPowerSavingToggle = viewModel::setPowerSavingMode,
+                                                    onOledBlackToggle = viewModel::setOledBlackInPowerSaver,
+                                                    onFontSizeChange = viewModel::setEditorFontSize,
+                                                    onAutoSaveToggle = viewModel::setAutoSave,
+                                                    onPdfNightDefaultToggle = viewModel::setPdfNightInvertDefault,
+                                                    onGridlinesToggle = viewModel::setShowGridlines,
+                                                    onLineNumbersToggle = viewModel::setShowLineNumbers,
+                                                    onExportBackup = {
+                                                        backupExportLauncher.launch("LuminaDocs_Backup_${System.currentTimeMillis()}.luminabak")
+                                                    },
+                                                    onRestoreBackup = {
+                                                        backupRestoreLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+                                                    },
+                                                    onClearCache = viewModel::clearCache,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
 
-                        FloatingGlassNavBar(
-                            destinations = destinations,
-                            selectedRoute = currentTab,
-                            onSelect = { route ->
-                                currentTab = route
-                                if (route == "settings") viewModel.refreshCacheSize()
+                        is ActiveEditorState.Loading -> {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator()
+                            }
+                        }
+
+                        is ActiveEditorState.PdfEditor -> PdfEditorScreen(
+                            state = active,
+                            powerSavingMode = settings.powerSavingMode,
+                            onClose = viewModel::closeEditor,
+                            onPageChange = viewModel::setPdfPage,
+                            onToggleNightInvert = viewModel::togglePdfNightInvert,
+                            onToggleBookmark = viewModel::togglePdfPageBookmark,
+                            onAddAnnotation = viewModel::addPdfAnnotation,
+                            onDeleteAnnotation = viewModel::deletePdfAnnotation,
+                            onAppendNewPage = viewModel::appendNewPdfPage,
+                            onDeleteCurrentPage = viewModel::deleteCurrentPdfPage,
+                            onBakeAndSave = viewModel::bakeAndSavePdf,
+                            onShare = { shareDocument(active.document) },
+                        )
+
+                        is ActiveEditorState.SpreadsheetEditor -> SpreadsheetEditorScreen(
+                            state = active,
+                            showGridlines = settings.showGridlines,
+                            fontSizeSp = settings.editorFontSizeSp,
+                            onClose = viewModel::closeEditor,
+                            onSelectCell = viewModel::selectSpreadsheetCell,
+                            onUpdateCell = viewModel::updateSpreadsheetCell,
+                            onSelectSheet = viewModel::selectSpreadsheetSheet,
+                            onAddSheet = viewModel::addSpreadsheetSheet,
+                            onAddRow = viewModel::addSpreadsheetRow,
+                            onAddColumn = viewModel::addSpreadsheetColumn,
+                            onDeleteSelectedRow = viewModel::deleteSelectedSpreadsheetRow,
+                            onDeleteSelectedColumn = viewModel::deleteSelectedSpreadsheetColumn,
+                            onSortColumn = { viewModel.sortSpreadsheetBySelectedColumn(ascending = true) },
+                            onSave = viewModel::saveSpreadsheet,
+                            onExportPdf = {
+                                viewModel.saveSpreadsheet()
+                                viewModel.convertDocument(active.document, DocumentType.PDF)
                             },
-                            modifier = Modifier.align(Alignment.BottomCenter),
+                            onShare = { shareDocument(active.document) },
+                        )
+
+                        is ActiveEditorState.WordEditor -> WordEditorScreen(
+                            state = active,
+                            fontSizeSp = settings.editorFontSizeSp,
+                            onClose = viewModel::closeEditor,
+                            onSelectBlock = viewModel::selectWordBlock,
+                            onUpdateBlock = viewModel::updateWordBlock,
+                            onAddBlock = viewModel::addWordBlock,
+                            onMoveBlock = viewModel::moveWordBlock,
+                            onDeleteBlock = viewModel::deleteWordBlock,
+                            onFindReplace = viewModel::replaceTextInWord,
+                            onSave = viewModel::saveWordDocument,
+                            onExportPdf = {
+                                viewModel.saveWordDocument()
+                                viewModel.convertDocument(active.document, DocumentType.PDF)
+                            },
+                            onShare = { shareDocument(active.document) },
+                        )
+
+                        is ActiveEditorState.SlidesEditor -> SlidesEditorScreen(
+                            state = active,
+                            onClose = viewModel::closeEditor,
+                            onSelectSlide = viewModel::selectSlide,
+                            onUpdateSlide = viewModel::updateActiveSlide,
+                            onAddSlide = viewModel::addSlide,
+                            onDeleteSlide = viewModel::deleteActiveSlide,
+                            onSave = viewModel::saveSlides,
+                            onExportPdf = {
+                                viewModel.saveSlides()
+                                viewModel.convertDocument(active.document, DocumentType.PDF)
+                            },
+                            onShare = { shareDocument(active.document) },
+                        )
+
+                        is ActiveEditorState.TextEditor -> TextEditorScreen(
+                            state = active,
+                            fontSizeSp = settings.editorFontSizeSp,
+                            showLineNumbers = settings.showLineNumbers,
+                            onClose = viewModel::closeEditor,
+                            onContentChange = viewModel::updateTextContent,
+                            onTogglePreview = viewModel::toggleTextPreviewMode,
+                            onSave = viewModel::saveTextDocument,
+                            onExportPdf = {
+                                viewModel.saveTextDocument()
+                                viewModel.convertDocument(active.document, DocumentType.PDF)
+                            },
+                            onConvertDocx = {
+                                viewModel.saveTextDocument()
+                                viewModel.convertDocument(active.document, DocumentType.DOCX)
+                            },
+                            onShare = { shareDocument(active.document) },
                         )
                     }
 
-                    is ActiveEditorState.Loading -> {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
-                        }
+                    if (isBusy) {
+                        LinearProgressIndicator(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .align(Alignment.TopCenter),
+                            color = MaterialTheme.colorScheme.primary,
+                        )
                     }
-
-                    is ActiveEditorState.PdfEditor -> PdfEditorScreen(
-                        state = active,
-                        powerSavingMode = settings.powerSavingMode,
-                        onClose = viewModel::closeEditor,
-                        onPageChange = viewModel::setPdfPage,
-                        onToggleNightInvert = viewModel::togglePdfNightInvert,
-                        onToggleBookmark = viewModel::togglePdfPageBookmark,
-                        onAddAnnotation = viewModel::addPdfAnnotation,
-                        onDeleteAnnotation = viewModel::deletePdfAnnotation,
-                        onAppendNewPage = viewModel::appendNewPdfPage,
-                        onDeleteCurrentPage = viewModel::deleteCurrentPdfPage,
-                        onBakeAndSave = viewModel::bakeAndSavePdf,
-                        onShare = { shareDocument(active.document) },
-                    )
-
-                    is ActiveEditorState.SpreadsheetEditor -> SpreadsheetEditorScreen(
-                        state = active,
-                        showGridlines = settings.showGridlines,
-                        fontSizeSp = settings.editorFontSizeSp,
-                        onClose = viewModel::closeEditor,
-                        onSelectCell = viewModel::selectSpreadsheetCell,
-                        onUpdateCell = viewModel::updateSpreadsheetCell,
-                        onSelectSheet = viewModel::selectSpreadsheetSheet,
-                        onAddSheet = viewModel::addSpreadsheetSheet,
-                        onAddRow = viewModel::addSpreadsheetRow,
-                        onAddColumn = viewModel::addSpreadsheetColumn,
-                        onDeleteSelectedRow = viewModel::deleteSelectedSpreadsheetRow,
-                        onDeleteSelectedColumn = viewModel::deleteSelectedSpreadsheetColumn,
-                        onSortColumn = { viewModel.sortSpreadsheetBySelectedColumn(ascending = true) },
-                        onSave = viewModel::saveSpreadsheet,
-                        onExportPdf = {
-                            viewModel.saveSpreadsheet()
-                            viewModel.convertDocument(active.document, DocumentType.PDF)
-                        },
-                        onShare = { shareDocument(active.document) },
-                    )
-
-                    is ActiveEditorState.WordEditor -> WordEditorScreen(
-                        state = active,
-                        fontSizeSp = settings.editorFontSizeSp,
-                        onClose = viewModel::closeEditor,
-                        onSelectBlock = viewModel::selectWordBlock,
-                        onUpdateBlock = viewModel::updateWordBlock,
-                        onAddBlock = viewModel::addWordBlock,
-                        onMoveBlock = viewModel::moveWordBlock,
-                        onDeleteBlock = viewModel::deleteWordBlock,
-                        onFindReplace = viewModel::replaceTextInWord,
-                        onSave = viewModel::saveWordDocument,
-                        onExportPdf = {
-                            viewModel.saveWordDocument()
-                            viewModel.convertDocument(active.document, DocumentType.PDF)
-                        },
-                        onShare = { shareDocument(active.document) },
-                    )
-
-                    is ActiveEditorState.SlidesEditor -> SlidesEditorScreen(
-                        state = active,
-                        onClose = viewModel::closeEditor,
-                        onSelectSlide = viewModel::selectSlide,
-                        onUpdateSlide = viewModel::updateActiveSlide,
-                        onAddSlide = viewModel::addSlide,
-                        onDeleteSlide = viewModel::deleteActiveSlide,
-                        onSave = viewModel::saveSlides,
-                        onExportPdf = {
-                            viewModel.saveSlides()
-                            viewModel.convertDocument(active.document, DocumentType.PDF)
-                        },
-                        onShare = { shareDocument(active.document) },
-                    )
-
-                    is ActiveEditorState.TextEditor -> TextEditorScreen(
-                        state = active,
-                        fontSizeSp = settings.editorFontSizeSp,
-                        showLineNumbers = settings.showLineNumbers,
-                        onClose = viewModel::closeEditor,
-                        onContentChange = viewModel::updateTextContent,
-                        onTogglePreview = viewModel::toggleTextPreviewMode,
-                        onSave = viewModel::saveTextDocument,
-                        onExportPdf = {
-                            viewModel.saveTextDocument()
-                            viewModel.convertDocument(active.document, DocumentType.PDF)
-                        },
-                        onConvertDocx = {
-                            viewModel.saveTextDocument()
-                            viewModel.convertDocument(active.document, DocumentType.DOCX)
-                        },
-                        onShare = { shareDocument(active.document) },
-                    )
-                }
-
-                if (isBusy) {
-                    LinearProgressIndicator(
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = 2.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                    )
                 }
             }
         }
