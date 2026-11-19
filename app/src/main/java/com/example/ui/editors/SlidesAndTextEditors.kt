@@ -98,9 +98,9 @@ fun SlidesEditorScreen(
 
     val isDark = LocalLuminaAppearance.current.isDark
     val sectionColor = if (isDark) {
-        MaterialTheme.colorScheme.surfaceContainerLow
+        MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f)
     } else {
-        MaterialTheme.colorScheme.surfaceContainerLowest
+        MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.95f)
     }
 
     val slide = state.deck.slides.getOrNull(state.activeSlideIndex) ?: state.deck.slides.first()
@@ -120,7 +120,7 @@ fun SlidesEditorScreen(
                 .fillMaxWidth()
                 .widthIn(max = 920.dp)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(26.dp),
             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
         ) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -167,13 +167,13 @@ fun SlidesEditorScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(16f / 9f)
-                    .clip(RoundedCornerShape(18.dp))
+                    .clip(RoundedCornerShape(26.dp))
                     .background(
                         Brush.linearGradient(
                             listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF0F294A))
                         )
                     )
-                    .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(18.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(26.dp))
                     .padding(20.dp),
             ) {
                 Column(
@@ -215,7 +215,7 @@ fun SlidesEditorScreen(
 
             // Slide Content Editor Form
             EditorialSectionSurface(
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(26.dp),
                 tonalLevel = sectionColor,
             ) {
                 Column(
@@ -227,6 +227,7 @@ fun SlidesEditorScreen(
                         onValueChange = { onUpdateSlide(it, bulletsJoined, slide.speakerNotes) },
                         label = { Text("Slide Title") },
                         singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.fillMaxWidth(),
                     )
                     OutlinedTextField(
@@ -234,6 +235,7 @@ fun SlidesEditorScreen(
                         onValueChange = { onUpdateSlide(slide.title, it, slide.speakerNotes) },
                         label = { Text("Bullet Points (one per line)") },
                         minLines = 4,
+                        shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.fillMaxWidth(),
                     )
                     OutlinedTextField(
@@ -241,6 +243,7 @@ fun SlidesEditorScreen(
                         onValueChange = { onUpdateSlide(slide.title, bulletsJoined, it) },
                         label = { Text("Speaker Notes") },
                         minLines = 2,
+                        shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -253,7 +256,7 @@ fun SlidesEditorScreen(
                 .fillMaxWidth()
                 .widthIn(max = 920.dp)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(26.dp),
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
         ) {
             Row(
@@ -269,6 +272,7 @@ fun SlidesEditorScreen(
                         FilterChip(
                             selected = idx == state.activeSlideIndex,
                             onClick = { onSelectSlide(idx) },
+                            shape = CircleShape,
                             label = { Text("Slide ${idx + 1}", maxLines = 1) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -315,9 +319,9 @@ fun TextEditorScreen(
 
     val isDark = LocalLuminaAppearance.current.isDark
     val editorSurfaceColor = if (isDark) {
-        MaterialTheme.colorScheme.surfaceContainerLow
+        MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.94f)
     } else {
-        MaterialTheme.colorScheme.surfaceContainerLowest
+        MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.96f)
     }
 
     val isJson = state.document.docType == DocumentType.JSON
@@ -341,7 +345,7 @@ fun TextEditorScreen(
                 .fillMaxWidth()
                 .widthIn(max = 920.dp)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(26.dp),
             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
         ) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -395,7 +399,7 @@ fun TextEditorScreen(
                     .fillMaxWidth()
                     .widthIn(max = 920.dp)
                     .padding(horizontal = 12.dp, vertical = 2.dp),
-                shape = RoundedCornerShape(12.dp),
+                shape = CircleShape,
                 color = if (jsonStatus is JsonValidationResult.Valid) {
                     FormatExcelColor.copy(alpha = 0.14f)
                 } else {
@@ -403,7 +407,7 @@ fun TextEditorScreen(
                 },
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
@@ -456,9 +460,9 @@ fun TextEditorScreen(
                 .fillMaxWidth()
                 .widthIn(max = 860.dp)
                 .padding(horizontal = 12.dp, vertical = 4.dp),
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(26.dp),
             color = editorSurfaceColor,
-            border = BorderStroke(0.75.dp, MaterialTheme.colorScheme.outlineVariant),
+            border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
         ) {
             Box(modifier = Modifier.padding(16.dp)) {
                 if (isMarkdown && state.previewMode) {
@@ -483,6 +487,7 @@ fun TextEditorScreen(
                                         modifier = Modifier
                                             .width(3.dp)
                                             .height(22.dp)
+                                            .clip(CircleShape)
                                             .background(MaterialTheme.colorScheme.primary),
                                     )
                                     Spacer(modifier = Modifier.width(10.dp))
@@ -491,7 +496,7 @@ fun TextEditorScreen(
                                 DocBlockStyle.CODE -> Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clip(RoundedCornerShape(10.dp))
+                                        .clip(RoundedCornerShape(14.dp))
                                         .background(MaterialTheme.colorScheme.surfaceContainer)
                                         .padding(12.dp),
                                 ) {
@@ -564,6 +569,7 @@ fun TextEditorScreen(
                 items(snippets) { (label, snippet) ->
                     SuggestionChip(
                         onClick = { onContentChange(state.content + snippet) },
+                        shape = CircleShape,
                         label = {
                             Text(
                                 text = label,

@@ -11,6 +11,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
@@ -23,14 +24,21 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddBox
 import androidx.compose.material.icons.outlined.Folder
@@ -42,14 +50,12 @@ import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Handyman
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -58,6 +64,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -78,6 +85,7 @@ import com.example.ui.screens.LibraryScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.ToolsHubScreen
 import com.example.ui.theme.AccentPalette
+import com.example.ui.theme.GlassToolbarSurface
 import com.example.ui.theme.LocalLuminaAppearance
 import com.example.ui.theme.LuminaBottomNavigationBar
 import com.example.ui.theme.LuminaDocsTheme
@@ -263,38 +271,6 @@ private fun LuminaAppRoot(viewModel: LuminaViewModel) {
 
             Scaffold(
                 containerColor = Color.Transparent,
-                snackbarHost = {
-                    SnackbarHost(
-                        hostState = snackbarHostState,
-                        modifier = Modifier.navigationBarsPadding(),
-                    )
-                },
-                bottomBar = {
-                    if (editorState is ActiveEditorState.None && !isExpandedWidth) {
-                        LuminaBottomNavigationBar(
-                            destinations = destinations,
-                            selectedRoute = currentTab,
-                            onSelect = onNavSelect,
-                        )
-                    }
-                },
-                floatingActionButton = {
-                    if (editorState is ActiveEditorState.None && currentTab == "library") {
-                        ExtendedFloatingActionButton(
-                            onClick = {
-                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                currentTab = "create"
-                            },
-                            icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
-                            text = { Text("New File") },
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier
-                                .bouncyPress()
-                                .testTag("library_fab_new"),
-                        )
-                    }
-                },
             ) { _ ->
                 Box(modifier = Modifier.fillMaxSize()) {
                     val tabOrder = remember { mapOf("library" to 0, "create" to 1, "tools" to 2, "settings" to 3) }
@@ -315,13 +291,13 @@ private fun LuminaAppRoot(viewModel: LuminaViewModel) {
                             if (appearance.reduceMotion) {
                                 EnterTransition.None togetherWith ExitTransition.None
                             } else if (initialState is ActiveEditorState.None && targetState !is ActiveEditorState.None) {
-                                (slideInVertically(LuminaSpringOffset) { it / 14 } +
-                                    scaleIn(initialScale = 0.97f, animationSpec = tween(260)) +
+                                (slideInVertically(LuminaSpringOffset) { it / 10 } +
+                                    scaleIn(initialScale = 0.96f, animationSpec = tween(260)) +
                                     fadeIn(tween(220))) togetherWith
-                                    (scaleOut(targetScale = 0.96f, animationSpec = tween(220)) + fadeOut(tween(180)))
+                                    (scaleOut(targetScale = 0.94f, animationSpec = tween(240)) + fadeOut(tween(180)))
                             } else if (initialState !is ActiveEditorState.None && targetState is ActiveEditorState.None) {
-                                (scaleIn(initialScale = 0.96f, animationSpec = tween(240)) + fadeIn(tween(200))) togetherWith
-                                    (slideOutVertically(tween(240)) { it / 12 } + fadeOut(tween(200)))
+                                (scaleIn(initialScale = 0.94f, animationSpec = tween(250)) + fadeIn(tween(200))) togetherWith
+                                    (slideOutVertically(tween(240)) { it / 10 } + fadeOut(tween(200)))
                             } else {
                                 fadeIn(tween(180)) togetherWith fadeOut(tween(150))
                             }
@@ -535,9 +511,103 @@ private fun LuminaAppRoot(viewModel: LuminaViewModel) {
                         LinearProgressIndicator(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .statusBarsPadding()
                                 .align(Alignment.TopCenter),
                             color = MaterialTheme.colorScheme.primary,
                         )
+                    }
+
+                    SnackbarHost(
+                        hostState = snackbarHostState,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .navigationBarsPadding()
+                            .padding(
+                                start = 16.dp,
+                                end = 16.dp,
+                                bottom = if (editorState is ActiveEditorState.None && !isExpandedWidth) 88.dp else 16.dp,
+                            ),
+                    )
+
+                    if (editorState is ActiveEditorState.None && !isExpandedWidth) {
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .widthIn(max = 540.dp)
+                                .navigationBarsPadding()
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            LuminaBottomNavigationBar(
+                                destinations = destinations,
+                                selectedRoute = currentTab,
+                                onSelect = onNavSelect,
+                                modifier = Modifier.weight(1f),
+                            )
+
+                            AnimatedVisibility(
+                                visible = currentTab == "library",
+                                enter = scaleIn(initialScale = 0.72f, animationSpec = tween(220)) + fadeIn(tween(180)),
+                                exit = scaleOut(targetScale = 0.72f, animationSpec = tween(180)) + fadeOut(tween(150)),
+                            ) {
+                                GlassToolbarSurface(
+                                    shape = CircleShape,
+                                    contentPadding = PaddingValues(0.dp),
+                                    modifier = Modifier
+                                        .size(62.dp)
+                                        .bouncyPress(pressedScale = 0.90f)
+                                        .clip(CircleShape)
+                                        .clickable {
+                                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            currentTab = "create"
+                                        }
+                                        .testTag("library_fab_new"),
+                                ) {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Add,
+                                            contentDescription = "Create new document",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(28.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    } else if (editorState is ActiveEditorState.None && isExpandedWidth && currentTab == "library") {
+                        GlassToolbarSurface(
+                            shape = CircleShape,
+                            contentPadding = PaddingValues(0.dp),
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .navigationBarsPadding()
+                                .padding(20.dp)
+                                .size(62.dp)
+                                .bouncyPress(pressedScale = 0.90f)
+                                .clip(CircleShape)
+                                .clickable {
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    currentTab = "create"
+                                }
+                                .testTag("library_fab_new"),
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Add,
+                                    contentDescription = "Create new document",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(28.dp),
+                                )
+                            }
+                        }
                     }
                 }
             }

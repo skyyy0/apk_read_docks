@@ -150,14 +150,18 @@ fun LuminaDocsTheme(
         reduceMotion = effectiveReduceMotion,
         accent = accentPalette,
         glassBarFill = if (effectiveGlass) {
-            colorScheme.surfaceContainer.copy(alpha = if (darkTheme) 0.84f else 0.88f)
+            if (darkTheme) {
+                colorScheme.surfaceContainer.copy(alpha = 0.74f)
+            } else {
+                colorScheme.surfaceContainerLowest.copy(alpha = 0.78f)
+            }
         } else {
             colorScheme.surfaceContainerLow
         },
         glassSpecularEdge = if (darkTheme) {
-            Color.White.copy(alpha = if (effectiveGlass) 0.13f else 0.06f)
+            Color.White.copy(alpha = if (effectiveGlass) 0.22f else 0.07f)
         } else {
-            Color.White.copy(alpha = if (effectiveGlass) 0.92f else 0.50f)
+            Color.White.copy(alpha = if (effectiveGlass) 0.96f else 0.55f)
         },
         glassHairlineBorder = colorScheme.outlineVariant,
     )

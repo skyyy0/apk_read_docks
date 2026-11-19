@@ -22,7 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.MergeType
+import androidx.compose.material.icons.automirrored.rounded.MergeType
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Button
@@ -72,9 +72,9 @@ fun ToolsHubScreen(
     val isDark = LocalLuminaAppearance.current.isDark
     val haptics = LocalHapticFeedback.current
     val sectionColor = if (isDark) {
-        MaterialTheme.colorScheme.surfaceContainerLow
+        MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.90f)
     } else {
-        MaterialTheme.colorScheme.surfaceContainerLowest
+        MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.92f)
     }
 
     val convertibleDocs = remember(allDocuments) {
@@ -110,7 +110,7 @@ fun ToolsHubScreen(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 120.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 132.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
@@ -131,7 +131,7 @@ fun ToolsHubScreen(
         // 1. Universal Format Converter
         item {
             EditorialSectionSurface(
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(26.dp),
                 tonalLevel = sectionColor,
             ) {
                 Column(
@@ -140,13 +140,22 @@ fun ToolsHubScreen(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.SwapHoriz,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.SwapHoriz,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
                         Column {
                             Text(
                                 text = "Universal Format Converter",
@@ -178,6 +187,7 @@ fun ToolsHubScreen(
                                 FilterChip(
                                     selected = doc.id == selectedSourceId,
                                     onClick = { selectedSourceId = doc.id },
+                                    shape = CircleShape,
                                     label = {
                                         Text(
                                             text = "${doc.title.take(18)} (${doc.docType.shortBadge})",
@@ -203,6 +213,7 @@ fun ToolsHubScreen(
                                     FilterChip(
                                         selected = targetType == format,
                                         onClick = { targetType = format },
+                                        shape = CircleShape,
                                         label = { Text(format.shortBadge) },
                                         colors = FilterChipDefaults.filterChipColors(
                                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -222,7 +233,7 @@ fun ToolsHubScreen(
                                     .height(48.dp)
                                     .bouncyPress()
                                     .testTag("convert_now_button"),
-                                shape = RoundedCornerShape(14.dp),
+                                shape = CircleShape,
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.SwapHoriz,
@@ -241,7 +252,7 @@ fun ToolsHubScreen(
         // 2. Multi-PDF Merger
         item {
             EditorialSectionSurface(
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(26.dp),
                 tonalLevel = sectionColor,
             ) {
                 Column(
@@ -250,13 +261,22 @@ fun ToolsHubScreen(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.MergeType,
-                            contentDescription = null,
-                            tint = FormatPdfColor,
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(FormatPdfColor.copy(alpha = 0.14f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.MergeType,
+                                contentDescription = null,
+                                tint = FormatPdfColor,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
                         Column {
                             Text(
                                 text = "Multi-PDF Merger",
@@ -281,7 +301,7 @@ fun ToolsHubScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(RoundedCornerShape(22.dp))
                                 .background(MaterialTheme.colorScheme.surfaceContainerLow),
                         ) {
                             pdfDocs.forEachIndexed { idx, pdf ->
@@ -322,8 +342,8 @@ fun ToolsHubScreen(
                                 if (idx < pdfDocs.lastIndex) {
                                     HorizontalDivider(
                                         modifier = Modifier.padding(start = 52.dp, end = 12.dp),
-                                        thickness = 0.75.dp,
-                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
+                                        thickness = 0.5.dp,
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
                                     )
                                 }
                             }
@@ -333,6 +353,7 @@ fun ToolsHubScreen(
                             value = mergedPdfTitle,
                             onValueChange = { mergedPdfTitle = it },
                             singleLine = true,
+                            shape = RoundedCornerShape(16.dp),
                             label = { Text("Merged PDF name") },
                             modifier = Modifier.fillMaxWidth(),
                         )
@@ -350,7 +371,7 @@ fun ToolsHubScreen(
                                 .height(48.dp)
                                 .bouncyPress(enabled = selectedPdfIds.size >= 2)
                                 .testTag("merge_pdfs_button"),
-                            shape = RoundedCornerShape(14.dp),
+                            shape = CircleShape,
                         ) {
                             Text("Merge ${selectedPdfIds.size} Selected PDFs")
                         }
@@ -362,7 +383,7 @@ fun ToolsHubScreen(
         // 3. Workspace Storage & Format Inspector
         item {
             EditorialSectionSurface(
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(26.dp),
                 tonalLevel = sectionColor,
             ) {
                 Column(
@@ -371,13 +392,22 @@ fun ToolsHubScreen(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Widgets,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Widgets,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
                         Column {
                             Text(
                                 text = "Workspace Storage Breakdown",

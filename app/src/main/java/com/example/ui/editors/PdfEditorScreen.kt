@@ -43,12 +43,15 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.NoteAdd
+import androidx.compose.material.icons.automirrored.rounded.StickyNote2
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.BorderColor
@@ -57,9 +60,7 @@ import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.LightMode
-import androidx.compose.material.icons.rounded.NoteAdd
 import androidx.compose.material.icons.rounded.Save
-import androidx.compose.material.icons.rounded.StickyNote2
 import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.ZoomIn
 import androidx.compose.material.icons.rounded.ZoomOut
@@ -108,6 +109,7 @@ import com.example.ui.theme.GlassToolbarSurface
 import com.example.ui.theme.JetBrainsMonoFamily
 import com.example.ui.theme.LocalLuminaAppearance
 import com.example.ui.theme.LuminaSpringSnappy
+import com.example.ui.theme.bouncyPress
 import com.example.viewmodel.ActiveEditorState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -227,7 +229,7 @@ fun PdfEditorScreen(
                 .fillMaxWidth()
                 .widthIn(max = 920.dp)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(26.dp),
             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
         ) {
             Row(
@@ -289,11 +291,11 @@ fun PdfEditorScreen(
                     .fillMaxWidth()
                     .widthIn(max = 920.dp)
                     .padding(horizontal = 12.dp, vertical = 2.dp),
-                shape = RoundedCornerShape(12.dp),
+                shape = CircleShape,
                 color = MaterialTheme.colorScheme.primaryContainer,
             ) {
                 Row(
-                    modifier = Modifier.padding(start = 14.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+                    modifier = Modifier.padding(start = 16.dp, end = 6.dp, top = 2.dp, bottom = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
@@ -326,6 +328,7 @@ fun PdfEditorScreen(
                     FilterChip(
                         selected = bm.targetIndex == state.currentPage,
                         onClick = { onPageChange(bm.targetIndex) },
+                        shape = CircleShape,
                         label = { Text(bm.label) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -401,9 +404,9 @@ fun PdfEditorScreen(
                                 translationX = panOffsetX
                                 translationY = panOffsetY
                             }
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(18.dp))
                             .background(if (state.nightInvert) Color(0xFF0F172A) else Color.White)
-                            .border(0.75.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+                            .border(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f), RoundedCornerShape(18.dp))
                             .pointerInput(Unit) {
                                 awaitEachGesture {
                                     awaitFirstDown(requireUnconsumed = false)
@@ -485,9 +488,9 @@ fun PdfEditorScreen(
                                             y = (ann.normY * heightPx).roundToInt().coerceIn(8, (heightPx - 60f).roundToInt().coerceAtLeast(8)),
                                         )
                                     }
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .clip(RoundedCornerShape(12.dp))
                                     .background(bgColor)
-                                    .border(1.dp, textColor.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                                    .border(1.dp, textColor.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
                                     .clickable { onDeleteAnnotation(ann.id) }
                                     .padding(horizontal = 8.dp, vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -519,7 +522,7 @@ fun PdfEditorScreen(
                 .fillMaxWidth()
                 .widthIn(max = 920.dp)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(26.dp),
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -541,7 +544,7 @@ fun PdfEditorScreen(
                             fontFamily = JetBrainsMonoFamily,
                             modifier = Modifier
                                 .minimumInteractiveComponentSize()
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(CircleShape)
                                 .clickable {
                                     jumpPageInput = "${state.currentPage + 1}"
                                     showJumpPageDialog = true
@@ -601,7 +604,7 @@ fun PdfEditorScreen(
                     }
                     item {
                         PdfToolChip(
-                            icon = Icons.Rounded.StickyNote2,
+                            icon = Icons.AutoMirrored.Rounded.StickyNote2,
                             label = "Sticky Note",
                             selected = activeTool == "NOTE",
                             onClick = { activeTool = if (activeTool == "NOTE") null else "NOTE" },
@@ -610,7 +613,7 @@ fun PdfEditorScreen(
                     }
                     item {
                         PdfToolChip(
-                            icon = Icons.Rounded.NoteAdd,
+                            icon = Icons.AutoMirrored.Rounded.NoteAdd,
                             label = "+ Page",
                             selected = false,
                             onClick = { showAddPageDialog = true },
@@ -636,12 +639,14 @@ fun PdfEditorScreen(
     if (showJumpPageDialog) {
         AlertDialog(
             onDismissRequest = { showJumpPageDialog = false },
+            shape = RoundedCornerShape(28.dp),
             title = { Text("Go to Page (1 – ${state.pageCount})") },
             text = {
                 OutlinedTextField(
                     value = jumpPageInput,
                     onValueChange = { jumpPageInput = it.filter(Char::isDigit) },
                     singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
                     label = { Text("Page number") },
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -663,11 +668,13 @@ fun PdfEditorScreen(
         val kind = activeTool ?: "TEXT"
         AlertDialog(
             onDismissRequest = { pendingPlacement = null },
+            shape = RoundedCornerShape(28.dp),
             title = { Text("Add $kind to Page ${state.currentPage + 1}") },
             text = {
                 OutlinedTextField(
                     value = annotationText,
                     onValueChange = { annotationText = it },
+                    shape = RoundedCornerShape(16.dp),
                     label = { Text("Content") },
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -697,6 +704,7 @@ fun PdfEditorScreen(
     if (showAddPageDialog) {
         AlertDialog(
             onDismissRequest = { showAddPageDialog = false },
+            shape = RoundedCornerShape(28.dp),
             title = { Text("Append New PDF Page") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -704,6 +712,7 @@ fun PdfEditorScreen(
                         value = newPageTitle,
                         onValueChange = { newPageTitle = it },
                         singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
                         label = { Text("Page Heading") },
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -711,6 +720,7 @@ fun PdfEditorScreen(
                         value = newPageBody,
                         onValueChange = { newPageBody = it },
                         minLines = 4,
+                        shape = RoundedCornerShape(16.dp),
                         label = { Text("Page Body Text") },
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -743,6 +753,7 @@ private fun PdfToolChip(
     FilterChip(
         selected = selected,
         onClick = onClick,
+        shape = CircleShape,
         leadingIcon = {
             Icon(
                 imageVector = icon,
@@ -762,6 +773,8 @@ private fun PdfToolChip(
             selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
             selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
         ),
-        modifier = Modifier.testTag(testTag),
+        modifier = Modifier
+            .bouncyPress(pressedScale = 0.94f)
+            .testTag(testTag),
     )
 }

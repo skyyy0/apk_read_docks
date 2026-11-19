@@ -98,10 +98,10 @@ jobs:
             **Developer:** sky | **Package ID:** `com.luminadocs.id`
 
             #### Highlights (v${{ steps.meta.outputs.version }})
-            - **Open Directly from WhatsApp, Telegram & Files**: Full Android `ACTION_VIEW` & `ACTION_SEND` intent integration so tapping `.pdf`, `.docx`, `.xlsx`, `.pptx`, `.csv`, `.md`, `.txt`, or `.json` shows **Lumina Docs** and imports/opens immediately
-            - **Zero-Simulation Workspace & Legacy Upgrade Cleanup**: Automatically purges legacy starter/seed entries on update while preserving all user documents
-            - **Lightweight R8-Optimized APK & Smooth iOS-Inspired Motion**: R8 minification & resource shrinking, LRU PDF bitmap caching with neighbor pre-rendering, spring pinch/double-tap zoom, swipe page turning & GPU press bounce
-            - **Material 3 + Restrained Liquid Glass UI**: Tonal hierarchy, adaptive `NavigationBar`/`NavigationRail`, Dynamic Color support
+            - **iOS 26 Liquid Glass Floating Dock & Specular Orbs**: Detached capsule Liquid Glass navigation dock with elastic spring-sliding indicator pill, floating circular `+` glass orb, translucent search & filter capsules, and inset-grouped continuous document lists
+            - **Smooth Physics & iOS-Crafted Controls**: Spring-animated iOS segmented theme capsules, spring toggle switches (`LuminaIosSwitch`), GPU-cached atmospheric glow canvas, and tactile bouncy press feedback
+            - **O(1) Memoized Excel Grid & Fast PDF Engine**: Pre-computed worksheet formula evaluation map for zero-jank scrolling, LRU PDF bitmap caching with neighbor pre-rendering, pinch/double-tap zoom & swipe page turning
+            - **Open Directly from WhatsApp, Telegram & Files**: Full Android `ACTION_VIEW` & `ACTION_SEND` intent integration for `.pdf`, `.docx`, `.xlsx`, `.pptx`, `.csv`, `.md`, `.txt`, and `.json`
             - **Full Offline Document Suite**: Native **PDF** Reader/Annotator/Merger, **Excel (`.xlsx` / `.csv`)** formula engine, **Word (`.docx`)** & **PowerPoint (`.pptx`)** editors, **Markdown / JSON** editor, and **Settings** (Mode Hemat Daya, OLED Black, `.luminabak` Backup & Restore)
           files: ${{ steps.meta.outputs.apk_file }}
           draft: false

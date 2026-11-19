@@ -1,8 +1,10 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,6 +28,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
@@ -38,7 +42,6 @@ import androidx.compose.material.icons.rounded.PictureAsPdf
 import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.SaveAlt
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarOutline
 import androidx.compose.material3.AlertDialog
@@ -46,9 +49,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -91,6 +91,7 @@ import com.example.ui.theme.FormatSlidesColor
 import com.example.ui.theme.FormatWordColor
 import com.example.ui.theme.GlassToolbarSurface
 import com.example.ui.theme.JetBrainsMonoFamily
+import com.example.ui.theme.LiquidGlassIconOrb
 import com.example.ui.theme.LocalLuminaAppearance
 import com.example.ui.theme.bouncyPress
 import com.example.viewmodel.LibraryFilterState
@@ -122,7 +123,8 @@ fun LibraryScreen(
     onShareDocument: (DocumentEntity) -> Unit,
     onDeleteDocument: (DocumentEntity) -> Unit,
 ) {
-    val isDark = LocalLuminaAppearance.current.isDark
+    val appearance = LocalLuminaAppearance.current
+    val isDark = appearance.isDark
     val haptics = LocalHapticFeedback.current
     var sortMenuExpanded by remember { mutableStateOf(false) }
     var actionTarget by remember { mutableStateOf<DocumentEntity?>(null) }
@@ -132,24 +134,24 @@ fun LibraryScreen(
     val pinnedDocs = remember(allDocuments) { allDocuments.filter { it.isPinned } }
     val totalSize = remember(allDocuments) { allDocuments.sumOf { it.sizeBytes } }
     val listSurfaceColor = if (isDark) {
-        MaterialTheme.colorScheme.surfaceContainerLow
+        MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.90f)
     } else {
-        MaterialTheme.colorScheme.surfaceContainerLowest
+        MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.92f)
     }
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 120.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 132.dp),
     ) {
         // Editorial Workspace Header
         item {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 2.dp),
+                    .padding(horizontal = 2.dp)
+                    .padding(bottom = 14.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -164,9 +166,9 @@ fun LibraryScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Row(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .clip(CircleShape)
                                     .background(FormatExcelColor.copy(alpha = 0.14f))
-                                    .padding(horizontal = 7.dp, vertical = 3.dp),
+                                    .padding(horizontal = 8.dp, vertical = 3.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Icon(
@@ -193,49 +195,65 @@ fun LibraryScreen(
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    IconButton(
+                    LiquidGlassIconOrb(
+                        icon = if (filterState.favoritesOnly) Icons.Rounded.Star else Icons.Rounded.StarOutline,
+                        contentDescription = "Filter Favorites",
                         onClick = onToggleFavoritesFilter,
+                        active = filterState.favoritesOnly,
+                        tint = if (filterState.favoritesOnly) FormatSlidesColor else MaterialTheme.colorScheme.onSurface,
+                        size = 48.dp,
                         modifier = Modifier.testTag("favorites_filter_button"),
+                    )
+                    GlassToolbarSurface(
+                        shape = CircleShape,
+                        contentPadding = PaddingValues(0.dp),
+                        modifier = Modifier
+                            .defaultMinSize(minHeight = 48.dp)
+                            .bouncyPress(pressedScale = 0.94f)
+                            .clip(CircleShape)
+                            .clickable {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onImportDeviceFile()
+                            }
+                            .testTag("import_device_button"),
                     ) {
-                        Icon(
-                            imageVector = if (filterState.favoritesOnly) Icons.Rounded.Star else Icons.Rounded.StarOutline,
-                            contentDescription = "Filter Favorites",
-                            tint = if (filterState.favoritesOnly) FormatSlidesColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    FilledTonalButton(
-                        onClick = onImportDeviceFile,
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                        modifier = Modifier.testTag("import_device_button"),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.FileOpen,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Open",
-                            style = MaterialTheme.typography.labelLarge,
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.FileOpen,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Text(
+                                text = "Open",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // Restrained Translucent Search Bar + Sort IconButton
+        // Translucent Capsule Search Bar + Sort Glass Orb
         item {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 GlassToolbarSurface(
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(16.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+                    shape = CircleShape,
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 13.dp),
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -283,22 +301,13 @@ fun LibraryScreen(
                 }
 
                 Box {
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
-                        border = BorderStroke(0.75.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)),
-                    ) {
-                        IconButton(
-                            onClick = { sortMenuExpanded = true },
-                            modifier = Modifier.testTag("sort_menu_button"),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Sort,
-                                contentDescription = "Sort documents",
-                                tint = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                    }
+                    LiquidGlassIconOrb(
+                        icon = Icons.AutoMirrored.Rounded.Sort,
+                        contentDescription = "Sort documents",
+                        onClick = { sortMenuExpanded = true },
+                        size = 48.dp,
+                        modifier = Modifier.testTag("sort_menu_button"),
+                    )
                     DropdownMenu(
                         expanded = sortMenuExpanded,
                         onDismissRequest = { sortMenuExpanded = false },
@@ -322,9 +331,10 @@ fun LibraryScreen(
             }
         }
 
-        // Native M3 Format FilterChips
+        // iOS-style Translucent Capsule Format Filter Pills
         item {
             LazyRow(
+                modifier = Modifier.padding(bottom = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(DocumentCategory.entries) { cat ->
@@ -337,18 +347,49 @@ fun LibraryScreen(
                         DocumentCategory.NOTES -> FormatMarkdownColor
                     }
                     val selected = filterState.category == cat
-                    FilterChip(
-                        selected = selected,
-                        onClick = { onCategorySelect(cat) },
-                        label = {
-                            Text(
-                                text = cat.label,
-                                style = MaterialTheme.typography.labelLarge,
-                                maxLines = 1,
-                            )
+                    val pillBg by animateColorAsState(
+                        targetValue = if (selected) {
+                            MaterialTheme.colorScheme.primaryContainer
+                        } else {
+                            appearance.glassBarFill
                         },
-                        leadingIcon = if (dotColor != null) {
-                            {
+                        label = "filterPillBg",
+                    )
+                    val pillTextColor by animateColorAsState(
+                        targetValue = if (selected) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        label = "filterPillText",
+                    )
+                    val borderColor = if (selected) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
+                    } else {
+                        appearance.glassHairlineBorder.copy(alpha = 0.45f)
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .defaultMinSize(minHeight = 48.dp)
+                            .bouncyPress(pressedScale = 0.94f)
+                            .clickable {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onCategorySelect(cat)
+                            }
+                            .testTag("filter_pill_${cat.name.lowercase()}"),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(pillBg)
+                                .border(0.75.dp, borderColor, CircleShape)
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            if (dotColor != null) {
                                 Box(
                                     modifier = Modifier
                                         .size(8.dp)
@@ -356,25 +397,30 @@ fun LibraryScreen(
                                         .background(dotColor),
                                 )
                             }
-                        } else null,
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        ),
-                        modifier = Modifier.testTag("filter_pill_${cat.name.lowercase()}"),
-                    )
+                            Text(
+                                text = cat.label,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                                color = pillTextColor,
+                                maxLines = 1,
+                            )
+                        }
+                    }
                 }
             }
         }
 
-        // Pinned Quick Access Shelf
+        // Pinned Quick Access Frosted Squircles
         if (pinnedDocs.isNotEmpty() && filterState.query.isBlank() && filterState.category == DocumentCategory.ALL) {
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier.padding(bottom = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.padding(horizontal = 2.dp),
+                        modifier = Modifier.padding(horizontal = 4.dp),
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.PushPin,
@@ -395,11 +441,11 @@ fun LibraryScreen(
                                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     onOpenDocument(doc)
                                 },
-                                shape = RoundedCornerShape(16.dp),
-                                color = listSurfaceColor,
-                                border = BorderStroke(0.75.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)),
+                                shape = RoundedCornerShape(24.dp),
+                                color = appearance.glassBarFill,
+                                border = BorderStroke(0.75.dp, appearance.glassSpecularEdge.copy(alpha = 0.55f)),
                                 modifier = Modifier
-                                    .width(184.dp)
+                                    .width(188.dp)
                                     .bouncyPress()
                                     .testTag("pinned_doc_${doc.id}"),
                             ) {
@@ -449,7 +495,8 @@ fun LibraryScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 2.dp, vertical = 2.dp),
+                    .padding(horizontal = 4.dp)
+                    .padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -467,26 +514,34 @@ fun LibraryScreen(
             }
         }
 
-        // Clean Empty State or Grouped Editorial Document List
+        // Clean Empty State or Seamless iOS Inset Grouped Document List
         if (filteredDocuments.isEmpty()) {
             item {
                 EditorialSectionSurface(
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(28.dp),
                     tonalLevel = listSurfaceColor,
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(24.dp),
+                            .padding(26.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.FolderOpen,
-                            contentDescription = "Empty workspace",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(40.dp),
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.FolderOpen,
+                                contentDescription = "Empty workspace",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(32.dp),
+                            )
+                        }
                         Text(
                             text = if (allDocuments.isEmpty()) "No Documents Yet" else "No matching documents",
                             style = MaterialTheme.typography.titleMedium,
@@ -506,13 +561,21 @@ fun LibraryScreen(
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Button(
                                     onClick = onImportDeviceFile,
-                                    modifier = Modifier.testTag("empty_import_button"),
+                                    shape = CircleShape,
+                                    modifier = Modifier
+                                        .height(48.dp)
+                                        .bouncyPress()
+                                        .testTag("empty_import_button"),
                                 ) {
                                     Text("Open File")
                                 }
                                 OutlinedButton(
                                     onClick = onJumpToCreate,
-                                    modifier = Modifier.testTag("empty_create_button"),
+                                    shape = CircleShape,
+                                    modifier = Modifier
+                                        .height(48.dp)
+                                        .bouncyPress()
+                                        .testTag("empty_create_button"),
                                 ) {
                                     Text("Create Blank")
                                 }
@@ -529,44 +592,53 @@ fun LibraryScreen(
                 val isFirst = index == 0
                 val isLast = index == filteredDocuments.lastIndex
                 val rowShape = RoundedCornerShape(
-                    topStart = if (isFirst) 20.dp else 0.dp,
-                    topEnd = if (isFirst) 20.dp else 0.dp,
-                    bottomStart = if (isLast) 20.dp else 0.dp,
-                    bottomEnd = if (isLast) 20.dp else 0.dp,
+                    topStart = if (isFirst) 26.dp else 0.dp,
+                    topEnd = if (isFirst) 26.dp else 0.dp,
+                    bottomStart = if (isLast) 26.dp else 0.dp,
+                    bottomEnd = if (isLast) 26.dp else 0.dp,
                 )
                 Surface(
                     shape = rowShape,
                     color = listSurfaceColor,
-                    border = BorderStroke(0.75.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
                     modifier = Modifier
                         .fillMaxWidth()
                         .animateItem(),
                 ) {
-                    DocumentListRow(
-                        doc = doc,
-                        onOpen = {
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onOpenDocument(doc)
-                        },
-                        onToggleFavorite = {
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onToggleFavorite(doc)
-                        },
-                        onMoreActions = {
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            actionTarget = doc
-                        },
-                    )
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        DocumentListRow(
+                            doc = doc,
+                            onOpen = {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onOpenDocument(doc)
+                            },
+                            onToggleFavorite = {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onToggleFavorite(doc)
+                            },
+                            onMoreActions = {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                actionTarget = doc
+                            },
+                        )
+                        if (!isLast) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 74.dp, end = 16.dp),
+                                thickness = 0.5.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 
-    // Bottom Sheet for Document Actions
+    // Floating iOS-style Action Sheet
     actionTarget?.let { target ->
         ModalBottomSheet(
             onDismissRequest = { actionTarget = null },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ) {
             Column(
@@ -595,7 +667,7 @@ fun LibraryScreen(
                         )
                     }
                 }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 Spacer(modifier = Modifier.height(4.dp))
 
                 SheetActionRow(Icons.Rounded.PushPin, if (target.isPinned) "Unpin from top" else "Pin to top") {
@@ -641,12 +713,14 @@ fun LibraryScreen(
     renameTarget?.let { target ->
         AlertDialog(
             onDismissRequest = { renameTarget = null },
+            shape = RoundedCornerShape(28.dp),
             title = { Text("Rename Document") },
             text = {
                 OutlinedTextField(
                     value = renameInput,
                     onValueChange = { renameInput = it },
                     singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
                     label = { Text("Document title") },
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -682,7 +756,7 @@ private fun DocumentListRow(
             .fillMaxWidth()
             .bouncyPress(pressedScale = 0.985f)
             .clickable(onClick = onOpen)
-            .padding(start = 14.dp, end = 6.dp, top = 12.dp, bottom = 12.dp)
+            .padding(start = 16.dp, end = 6.dp, top = 13.dp, bottom = 13.dp)
             .testTag("document_card_${doc.id}"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -772,7 +846,8 @@ private fun SheetActionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(16.dp))
+            .bouncyPress(pressedScale = 0.985f)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,

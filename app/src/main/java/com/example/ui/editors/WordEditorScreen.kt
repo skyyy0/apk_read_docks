@@ -77,6 +77,7 @@ import com.example.ui.theme.GlassToolbarSurface
 import com.example.ui.theme.JetBrainsMonoFamily
 import com.example.ui.theme.LocalLuminaAppearance
 import com.example.ui.theme.PlusJakartaSansFamily
+import com.example.ui.theme.bouncyPress
 import com.example.viewmodel.ActiveEditorState
 
 @Composable
@@ -98,9 +99,9 @@ fun WordEditorScreen(
 
     val isDark = LocalLuminaAppearance.current.isDark
     val pageSurfaceColor = if (isDark) {
-        MaterialTheme.colorScheme.surfaceContainerLow
+        MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.94f)
     } else {
-        MaterialTheme.colorScheme.surfaceContainerLowest
+        MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.96f)
     }
 
     val selectedBlock = state.richDocument.blocks.firstOrNull { it.id == state.selectedBlockId }
@@ -124,7 +125,7 @@ fun WordEditorScreen(
                 .fillMaxWidth()
                 .widthIn(max = 920.dp)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(26.dp),
             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
         ) {
             Row(
@@ -182,9 +183,9 @@ fun WordEditorScreen(
                 .fillMaxWidth()
                 .widthIn(max = 840.dp)
                 .padding(horizontal = 12.dp, vertical = 4.dp),
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(26.dp),
             color = pageSurfaceColor,
-            border = BorderStroke(0.75.dp, MaterialTheme.colorScheme.outlineVariant),
+            border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -218,7 +219,7 @@ fun WordEditorScreen(
                 .fillMaxWidth()
                 .widthIn(max = 920.dp)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(26.dp),
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -240,6 +241,7 @@ fun WordEditorScreen(
                                     }
                                 }
                             },
+                            shape = CircleShape,
                             label = { Text(style.label, maxLines = 1) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -311,8 +313,11 @@ fun WordEditorScreen(
 
                     Button(
                         onClick = { onAddBlock(DocBlockStyle.BODY) },
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                        modifier = Modifier.testTag("word_add_block_button"),
+                        shape = CircleShape,
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                        modifier = Modifier
+                            .bouncyPress()
+                            .testTag("word_add_block_button"),
                     ) {
                         Icon(
                             Icons.Rounded.Add,
@@ -333,6 +338,7 @@ fun WordEditorScreen(
     if (showFindReplace) {
         AlertDialog(
             onDismissRequest = { showFindReplace = false },
+            shape = RoundedCornerShape(28.dp),
             title = { Text("Find & Replace") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -340,6 +346,7 @@ fun WordEditorScreen(
                         value = findText,
                         onValueChange = { findText = it },
                         singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
                         label = { Text("Find text") },
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -347,6 +354,7 @@ fun WordEditorScreen(
                         value = replaceText,
                         onValueChange = { replaceText = it },
                         singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
                         label = { Text("Replace with") },
                         modifier = Modifier.fillMaxWidth(),
                     )

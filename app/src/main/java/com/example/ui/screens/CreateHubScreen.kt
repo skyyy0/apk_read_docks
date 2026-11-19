@@ -1,8 +1,10 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForwardIos
@@ -35,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
@@ -53,12 +57,13 @@ fun CreateHubScreen(
     onImportSingleFile: () -> Unit,
     onImportMultipleFiles: () -> Unit,
 ) {
-    val isDark = LocalLuminaAppearance.current.isDark
+    val appearance = LocalLuminaAppearance.current
+    val isDark = appearance.isDark
     val haptics = LocalHapticFeedback.current
     val surfaceColor = if (isDark) {
-        MaterialTheme.colorScheme.surfaceContainerLow
+        MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.90f)
     } else {
-        MaterialTheme.colorScheme.surfaceContainerLowest
+        MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.92f)
     }
 
     var pendingCreateType by remember { mutableStateOf<DocumentType?>(null) }
@@ -83,7 +88,7 @@ fun CreateHubScreen(
             .fillMaxSize()
             .statusBarsPadding()
             .testTag("create_hub_list"),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 120.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 132.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
@@ -108,10 +113,10 @@ fun CreateHubScreen(
                     text = "FROM DEVICE STORAGE",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 4.dp),
+                    modifier = Modifier.padding(horizontal = 6.dp),
                 )
                 EditorialSectionSurface(
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(26.dp),
                     tonalLevel = surfaceColor,
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
@@ -128,11 +133,20 @@ fun CreateHubScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.FileOpen,
-                                contentDescription = "Open file from device",
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.FileOpen,
+                                    contentDescription = "Open file from device",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(21.dp),
+                                )
+                            }
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = "Open File from Device",
@@ -154,9 +168,9 @@ fun CreateHubScreen(
                         }
 
                         HorizontalDivider(
-                            modifier = Modifier.padding(start = 54.dp, end = 16.dp),
-                            thickness = 0.75.dp,
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
+                            modifier = Modifier.padding(start = 72.dp, end = 16.dp),
+                            thickness = 0.5.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
                         )
 
                         Row(
@@ -172,11 +186,20 @@ fun CreateHubScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.LibraryAdd,
-                                contentDescription = "Batch import multiple files",
-                                tint = MaterialTheme.colorScheme.secondary,
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.LibraryAdd,
+                                    contentDescription = "Batch import multiple files",
+                                    tint = MaterialTheme.colorScheme.secondary,
+                                    modifier = Modifier.size(21.dp),
+                                )
+                            }
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = "Batch Import Multiple Files",
@@ -208,7 +231,7 @@ fun CreateHubScreen(
                 text = "NEW BLANK DOCUMENT",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 4.dp),
+                modifier = Modifier.padding(horizontal = 6.dp),
             )
         }
 
@@ -224,9 +247,9 @@ fun CreateHubScreen(
                             pendingCreateType = type
                             docTitleInput = ""
                         },
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(24.dp),
                         color = surfaceColor,
-                        border = BorderStroke(0.75.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)),
+                        border = BorderStroke(0.6.dp, appearance.glassSpecularEdge.copy(alpha = 0.45f)),
                         modifier = Modifier
                             .weight(1f)
                             .bouncyPress()
@@ -237,7 +260,7 @@ fun CreateHubScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            DocumentFormatBadge(type = type, size = 38.dp)
+                            DocumentFormatBadge(type = type, size = 40.dp)
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = type.displayName,
@@ -264,12 +287,14 @@ fun CreateHubScreen(
     pendingCreateType?.let { type ->
         AlertDialog(
             onDismissRequest = { pendingCreateType = null },
+            shape = RoundedCornerShape(28.dp),
             title = { Text("New ${type.displayName}") },
             text = {
                 OutlinedTextField(
                     value = docTitleInput,
                     onValueChange = { docTitleInput = it },
                     singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
                     placeholder = { Text("Untitled ${type.shortBadge}") },
                     label = { Text("File name") },
                     modifier = Modifier.fillMaxWidth(),

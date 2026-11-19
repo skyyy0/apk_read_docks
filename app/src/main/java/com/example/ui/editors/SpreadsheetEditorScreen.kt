@@ -74,6 +74,7 @@ import com.example.engine.SpreadsheetEngine
 import com.example.ui.theme.FormatExcelColor
 import com.example.ui.theme.GlassToolbarSurface
 import com.example.ui.theme.JetBrainsMonoFamily
+import com.example.ui.theme.bouncyPress
 import com.example.viewmodel.ActiveEditorState
 
 @Composable
@@ -99,11 +100,20 @@ fun SpreadsheetEditorScreen(
 
     val activeSheet = state.workbook.sheets.getOrNull(state.activeSheetIndex)
         ?: state.workbook.sheets.first()
+    val evaluatedCells = remember(activeSheet) {
+        buildMap {
+            activeSheet.rows.forEachIndexed { r, row ->
+                row.forEachIndexed { c, raw ->
+                    if (raw.startsWith("=")) {
+                        put((r shl 16) or c, SpreadsheetEngine.evaluateCell(activeSheet, r, c))
+                    }
+                }
+            }
+        }
+    }
     val horizontalScroll = rememberScrollState()
     val selectedRaw = activeSheet.cellAt(state.selectedRow, state.selectedCol)
-    val selectedEvaluated = remember(activeSheet, state.selectedRow, state.selectedCol) {
-        SpreadsheetEngine.evaluateCell(activeSheet, state.selectedRow, state.selectedCol)
-    }
+    val selectedEvaluated = evaluatedCells[(state.selectedRow shl 16) or state.selectedCol] ?: selectedRaw
     val cellRefLabel = "${SpreadsheetEngine.columnIndexToName(state.selectedCol)}${state.selectedRow + 1}"
 
     var showNewSheetDialog by remember { mutableStateOf(false) }
@@ -126,7 +136,7 @@ fun SpreadsheetEditorScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(26.dp),
             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
         ) {
             Row(
@@ -186,7 +196,7 @@ fun SpreadsheetEditorScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 2.dp),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(24.dp),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -197,7 +207,7 @@ fun SpreadsheetEditorScreen(
                 ) {
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(CircleShape)
                             .background(FormatExcelColor.copy(alpha = 0.16f))
                             .padding(horizontal = 10.dp, vertical = 5.dp),
                     ) {
@@ -254,6 +264,7 @@ fun SpreadsheetEditorScreen(
                     itemsIndexed(quickFormulas) { _, fn ->
                         SuggestionChip(
                             onClick = { onUpdateCell(state.selectedRow, state.selectedCol, selectedRaw + fn) },
+                            shape = CircleShape,
                             label = {
                                 Text(
                                     text = fn,
@@ -269,7 +280,7 @@ fun SpreadsheetEditorScreen(
 
         // 2D Scrollable Spreadsheet Grid
         val borderColor = if (showGridlines) {
-            MaterialTheme.colorScheme.outlineVariant
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)
         } else {
             Color.Transparent
         }
@@ -280,9 +291,9 @@ fun SpreadsheetEditorScreen(
                 .weight(1f)
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 6.dp),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surfaceContainerLowest,
-            border = BorderStroke(0.75.dp, MaterialTheme.colorScheme.outlineVariant),
+            border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Sticky Column Header Row
@@ -352,12 +363,10 @@ fun SpreadsheetEditorScreen(
                             for (cIdx in 0 until activeSheet.colCount) {
                                 val isSelected = rIdx == state.selectedRow && cIdx == state.selectedCol
                                 val rawValue = rowCells.getOrNull(cIdx) ?: ""
-                                val displayValue = remember(activeSheet, rIdx, cIdx, rawValue) {
-                                    if (rawValue.startsWith("=")) {
-                                        SpreadsheetEngine.evaluateCell(activeSheet, rIdx, cIdx)
-                                    } else {
-                                        rawValue
-                                    }
+                                val displayValue = if (rawValue.startsWith("=")) {
+                                    evaluatedCells[(rIdx shl 16) or cIdx] ?: ""
+                                } else {
+                                    rawValue
                                 }
                                 val isHeaderRow = rIdx == 0
                                 Box(
@@ -405,7 +414,7 @@ fun SpreadsheetEditorScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 6.dp),
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(26.dp),
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -417,6 +426,7 @@ fun SpreadsheetEditorScreen(
                         FilterChip(
                             selected = idx == state.activeSheetIndex,
                             onClick = { onSelectSheet(idx) },
+                            shape = CircleShape,
                             label = { Text(sheet.name, maxLines = 1) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -430,6 +440,7 @@ fun SpreadsheetEditorScreen(
                                 newSheetName = "Sheet ${state.workbook.sheets.size + 1}"
                                 showNewSheetDialog = true
                             },
+                            shape = CircleShape,
                             leadingIcon = {
                                 Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                             },
@@ -454,12 +465,14 @@ fun SpreadsheetEditorScreen(
     if (showNewSheetDialog) {
         AlertDialog(
             onDismissRequest = { showNewSheetDialog = false },
+            shape = RoundedCornerShape(28.dp),
             title = { Text("Add Worksheet") },
             text = {
                 OutlinedTextField(
                     value = newSheetName,
                     onValueChange = { newSheetName = it },
                     singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
                     label = { Text("Sheet name") },
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -486,9 +499,9 @@ private fun SheetActionButton(
 ) {
     FilledTonalButton(
         onClick = onClick,
-        modifier = modifier,
+        modifier = modifier.bouncyPress(pressedScale = 0.94f),
         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp),
-        shape = RoundedCornerShape(12.dp),
+        shape = CircleShape,
     ) {
         Icon(icon, contentDescription = null, modifier = Modifier.size(15.dp))
         Spacer(modifier = Modifier.width(4.dp))

@@ -39,11 +39,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -65,6 +61,8 @@ import com.example.ui.theme.EditorialSectionSurface
 import com.example.ui.theme.FormatExcelColor
 import com.example.ui.theme.JetBrainsMonoFamily
 import com.example.ui.theme.LocalLuminaAppearance
+import com.example.ui.theme.LuminaIosSwitch
+import com.example.ui.theme.LuminaSegmentedCapsule
 import com.example.ui.theme.bouncyPress
 import com.example.viewmodel.formatByteSize
 import java.text.SimpleDateFormat
@@ -105,7 +103,7 @@ fun SettingsScreen(
             .fillMaxSize()
             .statusBarsPadding()
             .testTag("settings_list"),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 120.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 132.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
@@ -123,7 +121,7 @@ fun SettingsScreen(
             }
         }
 
-        // 1. Appearance & Material 3 Dynamic Color
+        // 1. Appearance & iOS Liquid Glass Controls
         item {
             SettingsGroup(title = "APPEARANCE") {
                 Text(
@@ -132,22 +130,15 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                val themeOptions = listOf("SYSTEM" to "System", "LIGHT" to "Light", "DARK" to "Dark")
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    themeOptions.forEachIndexed { index, (key, label) ->
-                        SegmentedButton(
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = themeOptions.size),
-                            selected = settings.themeMode == key,
-                            onClick = {
-                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                onThemeModeChange(key)
-                            },
-                            modifier = Modifier.testTag("theme_mode_${key.lowercase()}"),
-                        ) {
-                            Text(label, maxLines = 1)
-                        }
-                    }
+                val themeOptions = remember {
+                    listOf("SYSTEM" to "System", "LIGHT" to "Light", "DARK" to "Dark")
                 }
+                LuminaSegmentedCapsule(
+                    options = themeOptions,
+                    selectedKey = settings.themeMode,
+                    onSelect = onThemeModeChange,
+                    testTagPrefix = "theme_mode",
+                )
 
                 Spacer(modifier = Modifier.height(14.dp))
                 val palettes = remember {
@@ -233,11 +224,11 @@ fun SettingsScreen(
 
                 SettingsToggleRow(
                     icon = Icons.Rounded.AutoAwesome,
-                    title = "Translucent Glass Bars",
+                    title = "Translucent Liquid Glass",
                     subtitle = if (settings.powerSavingMode) {
                         "Paused automatically while Power Saving Mode is active"
                     } else {
-                        "Subtle frosted tint & specular hairline on toolbars and navigation bar"
+                        "Frosted specular floating dock, orbs & glassy editor bars"
                     },
                     checked = settings.liquidGlassEnabled,
                     onCheckedChange = onLiquidGlassToggle,
@@ -278,12 +269,20 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.weight(1f),
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.CleaningServices,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(22.dp),
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.CleaningServices,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
                         Column {
                             Text(
                                 text = "Render & Export Cache",
@@ -302,7 +301,7 @@ fun SettingsScreen(
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onClearCache()
                         },
-                        shape = RoundedCornerShape(12.dp),
+                        shape = CircleShape,
                         modifier = Modifier
                             .bouncyPress()
                             .testTag("clear_cache_button"),
@@ -348,7 +347,7 @@ fun SettingsScreen(
                             .height(48.dp)
                             .bouncyPress()
                             .testTag("export_backup_button"),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = CircleShape,
                     ) {
                         Icon(Icons.Rounded.Backup, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
@@ -364,7 +363,7 @@ fun SettingsScreen(
                             .height(48.dp)
                             .bouncyPress()
                             .testTag("restore_backup_button"),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = CircleShape,
                     ) {
                         Icon(Icons.Rounded.Restore, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
@@ -471,9 +470,9 @@ private fun SettingsGroup(
 ) {
     val isDark = LocalLuminaAppearance.current.isDark
     val groupColor = if (isDark) {
-        MaterialTheme.colorScheme.surfaceContainerLow
+        MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.90f)
     } else {
-        MaterialTheme.colorScheme.surfaceContainerLowest
+        MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.92f)
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -481,10 +480,10 @@ private fun SettingsGroup(
             text = title,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 4.dp),
+            modifier = Modifier.padding(horizontal = 6.dp),
         )
         EditorialSectionSurface(
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(26.dp),
             tonalLevel = groupColor,
         ) {
             Column(
@@ -513,12 +512,20 @@ private fun SettingsToggleRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = iconTint,
-            modifier = Modifier.size(22.dp),
-        )
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(iconTint.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(18.dp),
+            )
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
@@ -531,9 +538,10 @@ private fun SettingsToggleRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Switch(
+        LuminaIosSwitch(
             checked = checked,
             onCheckedChange = onCheckedChange,
+            contentDesc = title,
             modifier = Modifier.testTag(testTag),
         )
     }
@@ -550,12 +558,20 @@ private fun InfoRow(icon: ImageVector, label: String, value: String) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(19.dp),
-            )
+            Box(
+                modifier = Modifier
+                    .size(30.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
             Text(label, style = MaterialTheme.typography.titleSmall)
         }
         Text(
@@ -570,8 +586,8 @@ private fun InfoRow(icon: ImageVector, label: String, value: String) {
 @Composable
 private fun SettingsDivider() {
     HorizontalDivider(
-        modifier = Modifier.padding(vertical = 12.dp),
-        thickness = 0.75.dp,
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
+        modifier = Modifier.padding(start = 46.dp, top = 12.dp, bottom = 12.dp),
+        thickness = 0.5.dp,
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
     )
 }
