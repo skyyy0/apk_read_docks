@@ -53,6 +53,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -63,6 +65,7 @@ import com.example.ui.theme.EditorialSectionSurface
 import com.example.ui.theme.FormatExcelColor
 import com.example.ui.theme.JetBrainsMonoFamily
 import com.example.ui.theme.LocalLuminaAppearance
+import com.example.ui.theme.bouncyPress
 import com.example.viewmodel.formatByteSize
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -88,6 +91,7 @@ fun SettingsScreen(
     onRestoreBackup: () -> Unit,
     onClearCache: () -> Unit,
 ) {
+    val haptics = LocalHapticFeedback.current
     val lastBackupLabel = remember(settings.lastBackupTimestamp) {
         if (settings.lastBackupTimestamp <= 0L) {
             "No backup created yet"
@@ -134,7 +138,10 @@ fun SettingsScreen(
                         SegmentedButton(
                             shape = SegmentedButtonDefaults.itemShape(index = index, count = themeOptions.size),
                             selected = settings.themeMode == key,
-                            onClick = { onThemeModeChange(key) },
+                            onClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onThemeModeChange(key)
+                            },
                             modifier = Modifier.testTag("theme_mode_${key.lowercase()}"),
                         ) {
                             Text(label, maxLines = 1)
@@ -165,8 +172,12 @@ fun SettingsScreen(
                         Box(
                             modifier = Modifier
                                 .size(48.dp)
+                                .bouncyPress(pressedScale = 0.9f)
                                 .clip(CircleShape)
-                                .clickable { onAccentChange(palette.key) }
+                                .clickable {
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onAccentChange(palette.key)
+                                }
                                 .testTag("accent_${palette.key.lowercase()}"),
                             contentAlignment = Alignment.Center,
                         ) {
@@ -287,9 +298,14 @@ fun SettingsScreen(
                         }
                     }
                     OutlinedButton(
-                        onClick = onClearCache,
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onClearCache()
+                        },
                         shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.testTag("clear_cache_button"),
+                        modifier = Modifier
+                            .bouncyPress()
+                            .testTag("clear_cache_button"),
                     ) {
                         Text("Clear")
                     }
@@ -323,10 +339,14 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     Button(
-                        onClick = onExportBackup,
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onExportBackup()
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp)
+                            .bouncyPress()
                             .testTag("export_backup_button"),
                         shape = RoundedCornerShape(14.dp),
                     ) {
@@ -335,10 +355,14 @@ fun SettingsScreen(
                         Text("Backup Data")
                     }
                     OutlinedButton(
-                        onClick = onRestoreBackup,
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onRestoreBackup()
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp)
+                            .bouncyPress()
                             .testTag("restore_backup_button"),
                         shape = RoundedCornerShape(14.dp),
                     ) {

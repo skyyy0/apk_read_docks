@@ -9,6 +9,7 @@ import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
+import android.util.LruCache
 import com.example.data.model.PdfAnnotationEntity
 import java.io.File
 import java.io.FileOutputStream
@@ -20,6 +21,32 @@ data class PdfTextPage(
 
 object PdfEngine {
 
+    private val maxCacheBytes: Int =
+        ((Runtime.getRuntime().maxMemory() / 1024L) / 10L)
+            .toInt()
+            .coerceIn(4 * 1024, 20 * 1024)
+
+    private val pageCache = object : LruCache<String, Bitmap>(maxCacheBytes) {
+        override fun sizeOf(key: String, value: Bitmap): Int = (value.byteCount / 1024).coerceAtLeast(1)
+    }
+
+    private fun cacheKey(file: File, pageIndex: Int, powerSavingMode: Boolean, thumbnail: Boolean): String =
+        "${file.absolutePath}|${file.lastModified()}|p$pageIndex|eco=$powerSavingMode|thumb=$thumbnail"
+
+    fun getCachedPage(
+        file: File,
+        pageIndex: Int,
+        powerSavingMode: Boolean,
+        thumbnail: Boolean = false,
+    ): Bitmap? {
+        val bmp = pageCache.get(cacheKey(file, pageIndex, powerSavingMode, thumbnail))
+        return if (bmp != null && !bmp.isRecycled) bmp else null
+    }
+
+    fun clearRenderCache() {
+        pageCache.evictAll()
+    }
+
     fun getPageCount(file: File): Int {
         return runCatching {
             ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
@@ -30,7 +57,7 @@ object PdfEngine {
 
     /**
      * Renders a single page from a real PDF file using Android's native PdfRenderer.
-     * Respects Power Saving Mode by scaling down render DPI cleanly for battery & speed.
+     * Uses an in-memory LRU cache so page flipping feels instantaneous.
      */
     fun renderPageBitmap(
         file: File,
@@ -38,7 +65,12 @@ object PdfEngine {
         powerSavingMode: Boolean,
         thumbnail: Boolean = false,
     ): Bitmap? {
-        return runCatching {
+        val key = cacheKey(file, pageIndex, powerSavingMode, thumbnail)
+        pageCache.get(key)?.let { cached ->
+            if (!cached.isRecycled) return cached
+        }
+
+        val rendered = runCatching {
             ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
                 PdfRenderer(pfd).use { renderer ->
                     if (pageIndex !in 0 until renderer.pageCount) return null
@@ -59,6 +91,11 @@ object PdfEngine {
                 }
             }
         }.getOrNull()
+
+        if (rendered != null) {
+            pageCache.put(key, rendered)
+        }
+        return rendered
     }
 
     /**
@@ -243,6 +280,7 @@ object PdfEngine {
         pdf.close()
         if (outputFile.exists()) outputFile.delete()
         tempOut.renameTo(outputFile)
+        clearRenderCache()
     }
 
     /**
@@ -313,6 +351,7 @@ object PdfEngine {
         pdf.close()
         if (outputFile.exists()) outputFile.delete()
         tempOut.renameTo(outputFile)
+        clearRenderCache()
         return writtenPages
     }
 }

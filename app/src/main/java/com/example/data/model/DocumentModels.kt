@@ -1,5 +1,6 @@
 package com.example.data.model
 
+import androidx.compose.runtime.Immutable
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -85,6 +86,7 @@ enum class SortOrder(val label: String) {
     TYPE("Format"),
 }
 
+@Immutable
 @Entity(tableName = "documents")
 data class DocumentEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,
@@ -108,6 +110,7 @@ data class DocumentEntity(
         get() = runCatching { DocumentType.valueOf(type) }.getOrDefault(DocumentType.TEXT)
 }
 
+@Immutable
 @Entity(tableName = "pdf_annotations")
 data class PdfAnnotationEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,
@@ -121,6 +124,7 @@ data class PdfAnnotationEntity(
     val createdAt: Long = System.currentTimeMillis(),
 )
 
+@Immutable
 @Entity(tableName = "bookmarks")
 data class BookmarkEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,

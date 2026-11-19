@@ -3,6 +3,7 @@ package com.example.viewmodel
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.db.LuminaDatabase
@@ -44,6 +45,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
+@Immutable
 sealed interface ActiveEditorState {
     data object None : ActiveEditorState
     data class Loading(val document: DocumentEntity) : ActiveEditorState
@@ -90,6 +92,7 @@ sealed interface ActiveEditorState {
     ) : ActiveEditorState
 }
 
+@Immutable
 data class LibraryFilterState(
     val query: String = "",
     val category: DocumentCategory = DocumentCategory.ALL,
@@ -160,6 +163,7 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
 
     init {
         viewModelScope.launch {
+            repository.purgeOrphanedLegacySeedFiles()
             refreshCacheSize()
         }
     }

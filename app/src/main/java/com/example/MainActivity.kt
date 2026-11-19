@@ -13,8 +13,15 @@ import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -23,7 +30,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddBox
@@ -53,9 +59,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.core.content.IntentCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.DocumentEntity
 import com.example.data.model.DocumentType
@@ -74,7 +83,9 @@ import com.example.ui.theme.LuminaBottomNavigationBar
 import com.example.ui.theme.LuminaDocsTheme
 import com.example.ui.theme.LuminaNavDestination
 import com.example.ui.theme.LuminaNavigationRail
+import com.example.ui.theme.LuminaSpringOffset
 import com.example.ui.theme.LuminaWorkspaceCanvas
+import com.example.ui.theme.bouncyPress
 import com.example.viewmodel.ActiveEditorState
 import com.example.viewmodel.LuminaViewModel
 
@@ -119,14 +130,30 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         handleIncomingIntent(intent)
     }
 
     private fun handleIncomingIntent(intent: Intent?) {
-        if (intent?.action == Intent.ACTION_VIEW) {
-            val uri: Uri? = intent.data
-            if (uri != null) {
-                viewModel.importFromUri(uri, openImmediately = true)
+        if (intent == null) return
+        when (intent.action) {
+            Intent.ACTION_VIEW -> {
+                val uri = intent.data ?: IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+                if (uri != null) {
+                    viewModel.importFromUri(uri, openImmediately = true)
+                }
+            }
+            Intent.ACTION_SEND -> {
+                val uri = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java) ?: intent.data
+                if (uri != null) {
+                    viewModel.importFromUri(uri, openImmediately = true)
+                }
+            }
+            Intent.ACTION_SEND_MULTIPLE -> {
+                val uris = IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+                if (!uris.isNullOrEmpty()) {
+                    viewModel.importMultipleUris(uris)
+                }
             }
         }
     }
@@ -135,6 +162,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun LuminaAppRoot(viewModel: LuminaViewModel) {
     val context = LocalContext.current
+    val haptics = LocalHapticFeedback.current
     val appearance = LocalLuminaAppearance.current
     val allDocuments by viewModel.allDocuments.collectAsStateWithLifecycle()
     val filteredDocuments by viewModel.filteredDocuments.collectAsStateWithLifecycle()
@@ -253,52 +281,95 @@ private fun LuminaAppRoot(viewModel: LuminaViewModel) {
                 floatingActionButton = {
                     if (editorState is ActiveEditorState.None && currentTab == "library") {
                         ExtendedFloatingActionButton(
-                            onClick = { currentTab = "create" },
+                            onClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                currentTab = "create"
+                            },
                             icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
                             text = { Text("New File") },
                             containerColor = MaterialTheme.colorScheme.primaryContainer,
                             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.testTag("library_fab_new"),
+                            modifier = Modifier
+                                .bouncyPress()
+                                .testTag("library_fab_new"),
                         )
                     }
                 },
             ) { _ ->
                 Box(modifier = Modifier.fillMaxSize()) {
-                    when (val active = editorState) {
-                        is ActiveEditorState.None -> {
-                            Row(modifier = Modifier.fillMaxSize()) {
-                                if (isExpandedWidth) {
-                                    LuminaNavigationRail(
-                                        destinations = destinations,
-                                        selectedRoute = currentTab,
-                                        onSelect = onNavSelect,
-                                        modifier = Modifier.fillMaxHeight(),
-                                    )
-                                }
+                    val tabOrder = remember { mapOf("library" to 0, "create" to 1, "tools" to 2, "settings" to 3) }
+                    AnimatedContent(
+                        targetState = editorState,
+                        contentKey = { state ->
+                            when (state) {
+                                is ActiveEditorState.None -> "workspace"
+                                is ActiveEditorState.Loading -> "loading_${state.document.id}"
+                                is ActiveEditorState.PdfEditor -> "pdf_${state.document.id}"
+                                is ActiveEditorState.SpreadsheetEditor -> "sheet_${state.document.id}"
+                                is ActiveEditorState.WordEditor -> "word_${state.document.id}"
+                                is ActiveEditorState.SlidesEditor -> "slides_${state.document.id}"
+                                is ActiveEditorState.TextEditor -> "text_${state.document.id}"
+                            }
+                        },
+                        transitionSpec = {
+                            if (appearance.reduceMotion) {
+                                EnterTransition.None togetherWith ExitTransition.None
+                            } else if (initialState is ActiveEditorState.None && targetState !is ActiveEditorState.None) {
+                                (slideInVertically(LuminaSpringOffset) { it / 14 } +
+                                    scaleIn(initialScale = 0.97f, animationSpec = tween(260)) +
+                                    fadeIn(tween(220))) togetherWith
+                                    (scaleOut(targetScale = 0.96f, animationSpec = tween(220)) + fadeOut(tween(180)))
+                            } else if (initialState !is ActiveEditorState.None && targetState is ActiveEditorState.None) {
+                                (scaleIn(initialScale = 0.96f, animationSpec = tween(240)) + fadeIn(tween(200))) togetherWith
+                                    (slideOutVertically(tween(240)) { it / 12 } + fadeOut(tween(200)))
+                            } else {
+                                fadeIn(tween(180)) togetherWith fadeOut(tween(150))
+                            }
+                        },
+                        label = "editorShellTransition",
+                    ) { active ->
+                        when (active) {
+                            is ActiveEditorState.None -> {
+                                Row(modifier = Modifier.fillMaxSize()) {
+                                    if (isExpandedWidth) {
+                                        LuminaNavigationRail(
+                                            destinations = destinations,
+                                            selectedRoute = currentTab,
+                                            onSelect = onNavSelect,
+                                            modifier = Modifier.fillMaxHeight(),
+                                        )
+                                    }
 
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight(),
-                                    contentAlignment = Alignment.TopCenter,
-                                ) {
                                     Box(
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .widthIn(max = 840.dp)
+                                            .weight(1f)
                                             .fillMaxHeight(),
+                                        contentAlignment = Alignment.TopCenter,
                                     ) {
-                                        AnimatedContent(
-                                            targetState = currentTab,
-                                            transitionSpec = {
-                                                if (appearance.reduceMotion) {
-                                                    EnterTransition.None togetherWith ExitTransition.None
-                                                } else {
-                                                    fadeIn() togetherWith fadeOut()
-                                                }
-                                            },
-                                            label = "mainTabTransition",
-                                        ) { tab ->
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .widthIn(max = 840.dp)
+                                                .fillMaxHeight(),
+                                        ) {
+                                            AnimatedContent(
+                                                targetState = currentTab,
+                                                transitionSpec = {
+                                                    if (appearance.reduceMotion) {
+                                                        EnterTransition.None togetherWith ExitTransition.None
+                                                    } else {
+                                                        val dir = (tabOrder[targetState] ?: 0) - (tabOrder[initialState] ?: 0)
+                                                        if (dir >= 0) {
+                                                            (slideInHorizontally(LuminaSpringOffset) { it / 10 } + fadeIn(tween(200))) togetherWith
+                                                                (slideOutHorizontally(tween(180)) { -it / 12 } + fadeOut(tween(150)))
+                                                        } else {
+                                                            (slideInHorizontally(LuminaSpringOffset) { -it / 10 } + fadeIn(tween(200))) togetherWith
+                                                                (slideOutHorizontally(tween(180)) { it / 12 } + fadeOut(tween(150)))
+                                                        }
+                                                    }
+                                                },
+                                                label = "mainTabTransition",
+                                            ) { tab ->
                                             when (tab) {
                                                 "library" -> LibraryScreen(
                                                     allDocuments = allDocuments,
@@ -457,6 +528,7 @@ private fun LuminaAppRoot(viewModel: LuminaViewModel) {
                             },
                             onShare = { shareDocument(active.document) },
                         )
+                        }
                     }
 
                     if (isBusy) {

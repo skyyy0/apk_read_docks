@@ -35,6 +35,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -43,6 +45,7 @@ import com.example.ui.theme.DocumentFormatBadge
 import com.example.ui.theme.EditorialSectionSurface
 import com.example.ui.theme.JetBrainsMonoFamily
 import com.example.ui.theme.LocalLuminaAppearance
+import com.example.ui.theme.bouncyPress
 
 @Composable
 fun CreateHubScreen(
@@ -51,6 +54,7 @@ fun CreateHubScreen(
     onImportMultipleFiles: () -> Unit,
 ) {
     val isDark = LocalLuminaAppearance.current.isDark
+    val haptics = LocalHapticFeedback.current
     val surfaceColor = if (isDark) {
         MaterialTheme.colorScheme.surfaceContainerLow
     } else {
@@ -114,7 +118,11 @@ fun CreateHubScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable(onClick = onImportSingleFile)
+                                .bouncyPress(pressedScale = 0.985f)
+                                .clickable {
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onImportSingleFile()
+                                }
                                 .padding(16.dp)
                                 .testTag("create_import_single_card"),
                             verticalAlignment = Alignment.CenterVertically,
@@ -154,7 +162,11 @@ fun CreateHubScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable(onClick = onImportMultipleFiles)
+                                .bouncyPress(pressedScale = 0.985f)
+                                .clickable {
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onImportMultipleFiles()
+                                }
                                 .padding(16.dp)
                                 .testTag("create_import_batch_card"),
                             verticalAlignment = Alignment.CenterVertically,
@@ -208,6 +220,7 @@ fun CreateHubScreen(
                 pair.forEach { type ->
                     Surface(
                         onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             pendingCreateType = type
                             docTitleInput = ""
                         },
@@ -216,6 +229,7 @@ fun CreateHubScreen(
                         border = BorderStroke(0.75.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)),
                         modifier = Modifier
                             .weight(1f)
+                            .bouncyPress()
                             .testTag("create_blank_${type.extension}"),
                     ) {
                         Row(

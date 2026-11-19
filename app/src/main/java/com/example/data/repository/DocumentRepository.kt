@@ -173,8 +173,9 @@ class DocumentRepository(
         }
 
         val mime = resolver.getType(uri)
-        val originalName = queryDisplayName(uri) ?: "Document_${System.currentTimeMillis()}.txt"
-        val docType = DocumentType.fromFileName(originalName, mime)
+        val rawName = queryDisplayName(uri)
+        val docType = DocumentType.fromFileName(rawName.orEmpty(), mime)
+        val originalName = rawName ?: "Document_${System.currentTimeMillis()}.${docType.extension}"
         val baseTitle = originalName.substringBeforeLast('.').ifBlank { originalName }
         val fileName = uniqueFileName(baseTitle, docType.extension)
         val destFile = File(docsDir, fileName)
@@ -692,11 +693,53 @@ class DocumentRepository(
         restoredCount
     }
 
+    suspend fun purgeOrphanedLegacySeedFiles() = withContext(Dispatchers.IO) {
+        val legacyTitles = setOf(
+            "Executive Brief PDF",
+            "Monthly Budget Tracker",
+            "Client Invoice Pro",
+            "Project Proposal",
+            "Meeting Minutes",
+            "Product Pitch Deck",
+            "Technical Spec Note",
+            "Structured JSON Config",
+        )
+        val allDocs = db.documentDao().getAllDocumentsOnce()
+        for (doc in allDocs) {
+            if (doc.sourceUri == null && doc.title in legacyTitles) {
+                runCatching { File(doc.filePath).delete() }
+                db.annotationDao().deleteForDocument(doc.id)
+                db.bookmarkDao().deleteForDocument(doc.id)
+                db.documentDao().deleteById(doc.id)
+            }
+        }
+        val activePaths = db.documentDao().getAllDocumentsOnce().map { it.filePath }.toHashSet()
+        val legacyPrefixes = listOf(
+            "executive_brief",
+            "monthly_budget",
+            "client_invoice",
+            "project_proposal",
+            "meeting_minutes",
+            "product_pitch",
+            "technical_spec",
+            "structured_json",
+        )
+        docsDir.listFiles()?.forEach { file ->
+            if (file.isFile &&
+                file.absolutePath !in activePaths &&
+                legacyPrefixes.any { prefix -> file.name.startsWith(prefix) }
+            ) {
+                runCatching { file.delete() }
+            }
+        }
+    }
+
     suspend fun getCacheSizeBytes(): Long = withContext(Dispatchers.IO) {
         calculateDirSize(context.cacheDir)
     }
 
     suspend fun clearAppCache(): Long = withContext(Dispatchers.IO) {
+        PdfEngine.clearRenderCache()
         val before = calculateDirSize(context.cacheDir)
         context.cacheDir.listFiles()?.forEach { child ->
             runCatching { child.deleteRecursively() }

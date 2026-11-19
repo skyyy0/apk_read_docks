@@ -9,6 +9,8 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Update
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.data.model.BookmarkEntity
 import com.example.data.model.DocumentEntity
 import com.example.data.model.PdfAnnotationEntity
@@ -91,7 +93,7 @@ interface BookmarkDao {
 
 @Database(
     entities = [DocumentEntity::class, PdfAnnotationEntity::class, BookmarkEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 abstract class LuminaDatabase : RoomDatabase() {
@@ -103,9 +105,25 @@ abstract class LuminaDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: LuminaDatabase? = null
 
-        private val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
-            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE documents ADD COLUMN sourceUri TEXT DEFAULT NULL")
+            }
+        }
+
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val legacyTitles =
+                    "'Executive Brief PDF','Monthly Budget Tracker','Client Invoice Pro','Project Proposal','Meeting Minutes','Product Pitch Deck','Technical Spec Note','Structured JSON Config'"
+                db.execSQL(
+                    "DELETE FROM pdf_annotations WHERE documentId IN (SELECT id FROM documents WHERE sourceUri IS NULL AND title IN ($legacyTitles))"
+                )
+                db.execSQL(
+                    "DELETE FROM bookmarks WHERE documentId IN (SELECT id FROM documents WHERE sourceUri IS NULL AND title IN ($legacyTitles))"
+                )
+                db.execSQL(
+                    "DELETE FROM documents WHERE sourceUri IS NULL AND title IN ($legacyTitles)"
+                )
             }
         }
 
@@ -116,7 +134,7 @@ abstract class LuminaDatabase : RoomDatabase() {
                     LuminaDatabase::class.java,
                     "lumina_docs.db",
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { INSTANCE = it }
             }

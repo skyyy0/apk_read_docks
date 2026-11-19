@@ -2,11 +2,26 @@ package com.example.ui.editors
 
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -76,8 +91,11 @@ import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -88,10 +106,14 @@ import com.example.engine.PdfEngine
 import com.example.ui.theme.FormatSlidesColor
 import com.example.ui.theme.GlassToolbarSurface
 import com.example.ui.theme.JetBrainsMonoFamily
+import com.example.ui.theme.LocalLuminaAppearance
+import com.example.ui.theme.LuminaSpringSnappy
 import com.example.viewmodel.ActiveEditorState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @Composable
@@ -110,10 +132,24 @@ fun PdfEditorScreen(
     onShare: () -> Unit,
 ) {
     BackHandler(onBack = onClose)
+    val haptics = LocalHapticFeedback.current
+    val reduceMotion = LocalLuminaAppearance.current.reduceMotion
 
-    var pageBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var isRendering by remember { mutableStateOf(true) }
-    var zoomScale by remember { mutableFloatStateOf(1f) }
+    val pdfFile = remember(state.document.filePath) { File(state.document.filePath) }
+    var pageBitmap by remember {
+        mutableStateOf(
+            PdfEngine.getCachedPage(pdfFile, state.currentPage, powerSavingMode)
+        )
+    }
+    var isRendering by remember { mutableStateOf(pageBitmap == null) }
+    var targetZoomScale by remember { mutableFloatStateOf(1f) }
+    val zoomScale by animateFloatAsState(
+        targetValue = targetZoomScale,
+        animationSpec = LuminaSpringSnappy,
+        label = "pdfZoomScale",
+    )
+    var panOffsetX by remember { mutableFloatStateOf(0f) }
+    var panOffsetY by remember { mutableFloatStateOf(0f) }
     var activeTool by remember { mutableStateOf<String?>(null) }
     var pendingPlacement by remember { mutableStateOf<Pair<Float, Float>?>(null) }
     var annotationText by remember { mutableStateOf("") }
@@ -131,16 +167,38 @@ fun PdfEditorScreen(
     }
 
     LaunchedEffect(state.document.filePath, state.currentPage, powerSavingMode, state.renderVersion) {
-        isRendering = true
-        val rendered = withContext(Dispatchers.IO) {
-            PdfEngine.renderPageBitmap(
-                file = File(state.document.filePath),
-                pageIndex = state.currentPage,
-                powerSavingMode = powerSavingMode,
-            )
+        targetZoomScale = 1f
+        panOffsetX = 0f
+        panOffsetY = 0f
+
+        val cached = PdfEngine.getCachedPage(pdfFile, state.currentPage, powerSavingMode)
+        if (cached != null) {
+            pageBitmap = cached
+            isRendering = false
+        } else {
+            isRendering = true
+            val rendered = withContext(Dispatchers.IO) {
+                PdfEngine.renderPageBitmap(
+                    file = pdfFile,
+                    pageIndex = state.currentPage,
+                    powerSavingMode = powerSavingMode,
+                )
+            }
+            pageBitmap = rendered
+            isRendering = false
         }
-        pageBitmap = rendered
-        isRendering = false
+
+        // Pre-render adjacent pages in background when not in Power Saving Mode
+        if (!powerSavingMode) {
+            launch(Dispatchers.IO) {
+                if (state.currentPage + 1 < state.pageCount) {
+                    PdfEngine.renderPageBitmap(pdfFile, state.currentPage + 1, powerSavingMode = false)
+                }
+                if (state.currentPage - 1 >= 0) {
+                    PdfEngine.renderPageBitmap(pdfFile, state.currentPage - 1, powerSavingMode = false)
+                }
+            }
+        }
     }
 
     val invertFilter = remember {
@@ -278,91 +336,177 @@ fun PdfEditorScreen(
             }
         }
 
-        // PDF Page Viewport
+        // PDF Page Viewport with fluid page transitions, pinch/double-tap zoom & horizontal swipe
         Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
                 .widthIn(max = 880.dp)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(rememberScrollState(), enabled = targetZoomScale <= 1.05f)
+                .pointerInput(state.currentPage, state.pageCount, activeTool, targetZoomScale) {
+                    if (targetZoomScale <= 1.05f && activeTool == null) {
+                        var totalDrag = 0f
+                        detectHorizontalDragGestures(
+                            onDragStart = { totalDrag = 0f },
+                            onHorizontalDrag = { _, dragAmount -> totalDrag += dragAmount },
+                            onDragEnd = {
+                                if (totalDrag > 96f && state.currentPage > 0) {
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onPageChange(state.currentPage - 1)
+                                } else if (totalDrag < -96f && state.currentPage < state.pageCount - 1) {
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onPageChange(state.currentPage + 1)
+                                }
+                            },
+                        )
+                    }
+                }
                 .padding(horizontal = 14.dp, vertical = 6.dp),
             contentAlignment = Alignment.Center,
         ) {
-            val bmp = pageBitmap
-            if (isRendering || bmp == null) {
-                CircularProgressIndicator()
-            } else {
-                val aspect = (bmp.width.toFloat() / bmp.height.toFloat()).coerceIn(0.45f, 2.2f)
-                BoxWithConstraints(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(aspect)
-                        .graphicsLayer {
-                            scaleX = zoomScale
-                            scaleY = zoomScale
-                        }
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (state.nightInvert) Color(0xFF0F172A) else Color.White)
-                        .border(0.75.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
-                        .pointerInput(activeTool) {
-                            detectTapGestures { offset ->
-                                if (activeTool != null && size.width > 0 && size.height > 0) {
-                                    pendingPlacement = (offset.x / size.width) to (offset.y / size.height)
-                                    annotationText = ""
+            AnimatedContent(
+                targetState = state.currentPage,
+                transitionSpec = {
+                    if (reduceMotion) {
+                        EnterTransition.None togetherWith ExitTransition.None
+                    } else if (targetState > initialState) {
+                        (slideInHorizontally(tween(240)) { it / 4 } + fadeIn(tween(200))) togetherWith
+                            (slideOutHorizontally(tween(200)) { -it / 4 } + fadeOut(tween(150)))
+                    } else {
+                        (slideInHorizontally(tween(240)) { -it / 4 } + fadeIn(tween(200))) togetherWith
+                            (slideOutHorizontally(tween(200)) { it / 4 } + fadeOut(tween(150)))
+                    }
+                },
+                label = "pdfPageSlide",
+            ) { _ ->
+                val bmp = pageBitmap
+                if (isRendering || bmp == null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(0.707f),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                } else {
+                    val aspect = (bmp.width.toFloat() / bmp.height.toFloat()).coerceIn(0.45f, 2.2f)
+                    BoxWithConstraints(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(aspect)
+                            .graphicsLayer {
+                                scaleX = zoomScale
+                                scaleY = zoomScale
+                                translationX = panOffsetX
+                                translationY = panOffsetY
+                            }
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (state.nightInvert) Color(0xFF0F172A) else Color.White)
+                            .border(0.75.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+                            .pointerInput(Unit) {
+                                awaitEachGesture {
+                                    awaitFirstDown(requireUnconsumed = false)
+                                    do {
+                                        val event = awaitPointerEvent()
+                                        val zoomDelta = event.calculateZoom()
+                                        val panDelta = event.calculatePan()
+                                        val isMultiTouch = event.changes.count { it.pressed } >= 2
+                                        if (isMultiTouch || targetZoomScale > 1.05f) {
+                                            if (abs(zoomDelta - 1f) > 0.005f || targetZoomScale > 1.05f) {
+                                                val newZoom = (targetZoomScale * zoomDelta).coerceIn(1f, 3.0f)
+                                                targetZoomScale = newZoom
+                                                if (newZoom > 1.05f) {
+                                                    val maxPanX = size.width * (newZoom - 1f) * 0.5f
+                                                    val maxPanY = size.height * (newZoom - 1f) * 0.5f
+                                                    panOffsetX = (panOffsetX + panDelta.x).coerceIn(-maxPanX, maxPanX)
+                                                    panOffsetY = (panOffsetY + panDelta.y).coerceIn(-maxPanY, maxPanY)
+                                                } else {
+                                                    panOffsetX = 0f
+                                                    panOffsetY = 0f
+                                                }
+                                                event.changes.forEach {
+                                                    if (it.positionChanged()) it.consume()
+                                                }
+                                            }
+                                        }
+                                    } while (event.changes.any { it.pressed })
                                 }
                             }
-                        },
-                ) {
-                    Image(
-                        bitmap = bmp.asImageBitmap(),
-                        contentDescription = "PDF Page ${state.currentPage + 1}",
-                        contentScale = ContentScale.FillBounds,
-                        colorFilter = if (state.nightInvert) invertFilter else null,
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                            .pointerInput(activeTool) {
+                                detectTapGestures(
+                                    onDoubleTap = {
+                                        if (activeTool == null) {
+                                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            if (targetZoomScale > 1.25f) {
+                                                targetZoomScale = 1f
+                                                panOffsetX = 0f
+                                                panOffsetY = 0f
+                                            } else {
+                                                targetZoomScale = 2.0f
+                                            }
+                                        }
+                                    },
+                                    onTap = { offset ->
+                                        if (activeTool != null && size.width > 0 && size.height > 0) {
+                                            pendingPlacement = (offset.x / size.width) to (offset.y / size.height)
+                                            annotationText = ""
+                                        }
+                                    },
+                                )
+                            },
+                    ) {
+                        Image(
+                            bitmap = bmp.asImageBitmap(),
+                            contentDescription = "PDF Page ${state.currentPage + 1}",
+                            contentScale = ContentScale.FillBounds,
+                            colorFilter = if (state.nightInvert) invertFilter else null,
+                            modifier = Modifier.fillMaxSize(),
+                        )
 
-                    val widthPx = constraints.maxWidth.toFloat()
-                    val heightPx = constraints.maxHeight.toFloat()
+                        val widthPx = constraints.maxWidth.toFloat()
+                        val heightPx = constraints.maxHeight.toFloat()
 
-                    pageAnnotations.forEach { ann ->
-                        val bgColor = when (ann.kind) {
-                            "HIGHLIGHT" -> Color(0x99FDE047)
-                            "NOTE" -> Color(0xFFFEF08A)
-                            else -> Color.White.copy(alpha = 0.90f)
-                        }
-                        val textColor = when (ann.kind) {
-                            "NOTE" -> Color(0xFF422006)
-                            else -> Color(ann.colorHex)
-                        }
-                        Row(
-                            modifier = Modifier
-                                .offset {
-                                    IntOffset(
-                                        x = (ann.normX * widthPx).roundToInt().coerceIn(8, (widthPx - 120f).roundToInt().coerceAtLeast(8)),
-                                        y = (ann.normY * heightPx).roundToInt().coerceIn(8, (heightPx - 60f).roundToInt().coerceAtLeast(8)),
-                                    )
-                                }
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(bgColor)
-                                .border(1.dp, textColor.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
-                                .clickable { onDeleteAnnotation(ann.id) }
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = ann.content,
-                                color = textColor,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 2,
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = "Remove annotation",
-                                tint = textColor.copy(alpha = 0.7f),
-                                modifier = Modifier.size(12.dp),
-                            )
+                        pageAnnotations.forEach { ann ->
+                            val bgColor = when (ann.kind) {
+                                "HIGHLIGHT" -> Color(0x99FDE047)
+                                "NOTE" -> Color(0xFFFEF08A)
+                                else -> Color.White.copy(alpha = 0.90f)
+                            }
+                            val textColor = when (ann.kind) {
+                                "NOTE" -> Color(0xFF422006)
+                                else -> Color(ann.colorHex)
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .offset {
+                                        IntOffset(
+                                            x = (ann.normX * widthPx).roundToInt().coerceIn(8, (widthPx - 120f).roundToInt().coerceAtLeast(8)),
+                                            y = (ann.normY * heightPx).roundToInt().coerceIn(8, (heightPx - 60f).roundToInt().coerceAtLeast(8)),
+                                        )
+                                    }
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(bgColor)
+                                    .border(1.dp, textColor.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                                    .clickable { onDeleteAnnotation(ann.id) }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = ann.content,
+                                    color = textColor,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 2,
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Remove annotation",
+                                    tint = textColor.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(12.dp),
+                                )
+                            }
                         }
                     }
                 }
@@ -413,15 +557,22 @@ fun PdfEditorScreen(
                     }
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { zoomScale = (zoomScale - 0.25f).coerceAtLeast(1f) }) {
+                        IconButton(onClick = {
+                            val nextZoom = (targetZoomScale - 0.25f).coerceAtLeast(1f)
+                            targetZoomScale = nextZoom
+                            if (nextZoom <= 1.05f) {
+                                panOffsetX = 0f
+                                panOffsetY = 0f
+                            }
+                        }) {
                             Icon(Icons.Rounded.ZoomOut, contentDescription = "Zoom out")
                         }
                         Text(
-                            text = "${(zoomScale * 100).roundToInt()}%",
+                            text = "${(targetZoomScale * 100).roundToInt()}%",
                             style = MaterialTheme.typography.labelSmall,
                             fontFamily = JetBrainsMonoFamily,
                         )
-                        IconButton(onClick = { zoomScale = (zoomScale + 0.25f).coerceAtMost(2.5f) }) {
+                        IconButton(onClick = { targetZoomScale = (targetZoomScale + 0.25f).coerceAtMost(3.0f) }) {
                             Icon(Icons.Rounded.ZoomIn, contentDescription = "Zoom in")
                         }
                     }

@@ -43,6 +43,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -58,6 +60,7 @@ import com.example.ui.theme.FormatSlidesColor
 import com.example.ui.theme.FormatWordColor
 import com.example.ui.theme.JetBrainsMonoFamily
 import com.example.ui.theme.LocalLuminaAppearance
+import com.example.ui.theme.bouncyPress
 import com.example.viewmodel.formatByteSize
 
 @Composable
@@ -67,6 +70,7 @@ fun ToolsHubScreen(
     onMergePdfs: (List<DocumentEntity>, String) -> Unit,
 ) {
     val isDark = LocalLuminaAppearance.current.isDark
+    val haptics = LocalHapticFeedback.current
     val sectionColor = if (isDark) {
         MaterialTheme.colorScheme.surfaceContainerLow
     } else {
@@ -210,11 +214,13 @@ fun ToolsHubScreen(
 
                             Button(
                                 onClick = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     selectedSource?.let { onConvertDocument(it, targetType) }
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(48.dp)
+                                    .bouncyPress()
                                     .testTag("convert_now_button"),
                                 shape = RoundedCornerShape(14.dp),
                             ) {
@@ -334,6 +340,7 @@ fun ToolsHubScreen(
                         Button(
                             enabled = selectedPdfIds.size >= 2,
                             onClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 val chosen = selectedPdfIds.mapNotNull { id -> pdfDocs.firstOrNull { it.id == id } }
                                 onMergePdfs(chosen, mergedPdfTitle)
                                 selectedPdfIds.clear()
@@ -341,6 +348,7 @@ fun ToolsHubScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(48.dp)
+                                .bouncyPress(enabled = selectedPdfIds.size >= 2)
                                 .testTag("merge_pdfs_button"),
                             shape = RoundedCornerShape(14.dp),
                         ) {

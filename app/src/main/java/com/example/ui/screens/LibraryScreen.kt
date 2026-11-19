@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -71,6 +72,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -89,6 +92,7 @@ import com.example.ui.theme.FormatWordColor
 import com.example.ui.theme.GlassToolbarSurface
 import com.example.ui.theme.JetBrainsMonoFamily
 import com.example.ui.theme.LocalLuminaAppearance
+import com.example.ui.theme.bouncyPress
 import com.example.viewmodel.LibraryFilterState
 import com.example.viewmodel.formatByteSize
 import java.text.SimpleDateFormat
@@ -119,6 +123,7 @@ fun LibraryScreen(
     onDeleteDocument: (DocumentEntity) -> Unit,
 ) {
     val isDark = LocalLuminaAppearance.current.isDark
+    val haptics = LocalHapticFeedback.current
     var sortMenuExpanded by remember { mutableStateOf(false) }
     var actionTarget by remember { mutableStateOf<DocumentEntity?>(null) }
     var renameTarget by remember { mutableStateOf<DocumentEntity?>(null) }
@@ -386,12 +391,16 @@ fun LibraryScreen(
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         items(pinnedDocs, key = { "pin_${it.id}" }) { doc ->
                             Surface(
-                                onClick = { onOpenDocument(doc) },
+                                onClick = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onOpenDocument(doc)
+                                },
                                 shape = RoundedCornerShape(16.dp),
                                 color = listSurfaceColor,
                                 border = BorderStroke(0.75.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)),
                                 modifier = Modifier
                                     .width(184.dp)
+                                    .bouncyPress()
                                     .testTag("pinned_doc_${doc.id}"),
                             ) {
                                 Column(
@@ -513,28 +522,41 @@ fun LibraryScreen(
                 }
             }
         } else {
-            item(key = "grouped_document_list") {
-                EditorialSectionSurface(
-                    shape = RoundedCornerShape(20.dp),
-                    tonalLevel = listSurfaceColor,
+            itemsIndexed(
+                items = filteredDocuments,
+                key = { _, doc -> "doc_${doc.id}" },
+            ) { index, doc ->
+                val isFirst = index == 0
+                val isLast = index == filteredDocuments.lastIndex
+                val rowShape = RoundedCornerShape(
+                    topStart = if (isFirst) 20.dp else 0.dp,
+                    topEnd = if (isFirst) 20.dp else 0.dp,
+                    bottomStart = if (isLast) 20.dp else 0.dp,
+                    bottomEnd = if (isLast) 20.dp else 0.dp,
+                )
+                Surface(
+                    shape = rowShape,
+                    color = listSurfaceColor,
+                    border = BorderStroke(0.75.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateItem(),
                 ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        filteredDocuments.forEachIndexed { index, doc ->
-                            DocumentListRow(
-                                doc = doc,
-                                onOpen = { onOpenDocument(doc) },
-                                onToggleFavorite = { onToggleFavorite(doc) },
-                                onMoreActions = { actionTarget = doc },
-                            )
-                            if (index < filteredDocuments.lastIndex) {
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(start = 74.dp, end = 14.dp),
-                                    thickness = 0.75.dp,
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
-                                )
-                            }
-                        }
-                    }
+                    DocumentListRow(
+                        doc = doc,
+                        onOpen = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onOpenDocument(doc)
+                        },
+                        onToggleFavorite = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onToggleFavorite(doc)
+                        },
+                        onMoreActions = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            actionTarget = doc
+                        },
+                    )
                 }
             }
         }
@@ -658,6 +680,7 @@ private fun DocumentListRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .bouncyPress(pressedScale = 0.985f)
             .clickable(onClick = onOpen)
             .padding(start = 14.dp, end = 6.dp, top = 12.dp, bottom = 12.dp)
             .testTag("document_card_${doc.id}"),

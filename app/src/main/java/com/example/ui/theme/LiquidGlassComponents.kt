@@ -1,9 +1,13 @@
 package com.example.ui.theme
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
@@ -26,10 +30,14 @@ import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.composed
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -37,19 +45,69 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.DocumentType
 
 /**
- * Clean M3 surface canvas with optional ultra-subtle atmospheric tint when Liquid Glass is active.
+ * Shared iOS-inspired spring physics tuned for fluid, zero-jank UI responses.
+ */
+val LuminaSpringSnappy = spring<Float>(
+    dampingRatio = 0.80f,
+    stiffness = Spring.StiffnessMedium,
+)
+
+val LuminaSpringOffset = spring<IntOffset>(
+    dampingRatio = 0.86f,
+    stiffness = Spring.StiffnessMediumLow,
+)
+
+/**
+ * Subtle tactile GPU press-scale micro-interaction (no layout invalidation; respects Reduce Motion).
+ */
+fun Modifier.bouncyPress(
+    enabled: Boolean = true,
+    pressedScale: Float = 0.972f,
+): Modifier = composed {
+    val reduceMotion = LocalLuminaAppearance.current.reduceMotion
+    if (!enabled || reduceMotion) return@composed this
+
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) pressedScale else 1f,
+        animationSpec = LuminaSpringSnappy,
+        label = "luminaPressScale",
+    )
+
+    this
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
+        .pointerInput(Unit) {
+            awaitPointerEventScope {
+                while (true) {
+                    awaitFirstDown(requireUnconsumed = false)
+                    isPressed = true
+                    waitForUpOrCancellation()
+                    isPressed = false
+                }
+            }
+        }
+}
+
+/**
+ * Clean M3 surface canvas with cached radial glow when Liquid Glass is active.
  */
 @Composable
 fun LuminaWorkspaceCanvas(
@@ -59,22 +117,30 @@ fun LuminaWorkspaceCanvas(
     val appearance = LocalLuminaAppearance.current
     val base = MaterialTheme.colorScheme.background
     val primaryGlow = MaterialTheme.colorScheme.primary.copy(alpha = if (appearance.isDark) 0.08f else 0.055f)
+    val showGlow = appearance.liquidGlassEnabled && !appearance.powerSavingMode
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(base)
-            .drawBehind {
-                if (appearance.liquidGlassEnabled && !appearance.powerSavingMode) {
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(primaryGlow, Color.Transparent),
-                            center = Offset(size.width * 0.9f, 0f),
-                            radius = size.width * 0.85f,
-                        ),
-                        radius = size.width * 0.85f,
-                        center = Offset(size.width * 0.9f, 0f),
+            .drawWithCache {
+                val center = Offset(size.width * 0.9f, 0f)
+                val radius = size.width * 0.85f
+                val brush = if (showGlow) {
+                    Brush.radialGradient(
+                        colors = listOf(primaryGlow, Color.Transparent),
+                        center = center,
+                        radius = radius.coerceAtLeast(1f),
                     )
+                } else null
+                onDrawBehind {
+                    if (brush != null) {
+                        drawCircle(
+                            brush = brush,
+                            radius = radius,
+                            center = center,
+                        )
+                    }
                 }
             },
         content = content,
@@ -93,9 +159,11 @@ fun GlassToolbarSurface(
     content: @Composable BoxScope.() -> Unit,
 ) {
     val appearance = LocalLuminaAppearance.current
-    val borderBrush = Brush.verticalGradient(
-        listOf(appearance.glassSpecularEdge, appearance.glassHairlineBorder.copy(alpha = 0.65f))
-    )
+    val borderBrush = remember(appearance.glassSpecularEdge, appearance.glassHairlineBorder) {
+        Brush.verticalGradient(
+            listOf(appearance.glassSpecularEdge, appearance.glassHairlineBorder.copy(alpha = 0.65f))
+        )
+    }
 
     Surface(
         modifier = modifier,

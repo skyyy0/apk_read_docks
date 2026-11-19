@@ -1,6 +1,8 @@
 package com.example
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -10,6 +12,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,6 +31,31 @@ class ExampleRobolectricTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val appName = context.getString(R.string.app_name)
         assertEquals("Lumina Docs", appName)
+    }
+
+    @Test
+    fun `manifest resolves external pdf view and share intents`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val pm = context.packageManager
+
+        val viewPdfIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(Uri.parse("content://com.whatsapp.provider.media/item/report.pdf"), "application/pdf")
+        }
+        val viewMatches = pm.queryIntentActivities(viewPdfIntent, 0)
+        assertTrue(viewMatches.any { it.activityInfo.packageName == context.packageName })
+
+        val octetPdfIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(Uri.parse("content://com.whatsapp.provider.media/item/invoice.pdf"), "application/octet-stream")
+        }
+        val octetMatches = pm.queryIntentActivities(octetPdfIntent, 0)
+        assertTrue(octetMatches.any { it.activityInfo.packageName == context.packageName })
+
+        val sendPdfIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/pdf"
+            putExtra(Intent.EXTRA_STREAM, Uri.parse("content://com.whatsapp.provider.media/item/shared.pdf"))
+        }
+        val sendMatches = pm.queryIntentActivities(sendPdfIntent, 0)
+        assertTrue(sendMatches.any { it.activityInfo.packageName == context.packageName })
     }
 
     @Test
