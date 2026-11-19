@@ -39,6 +39,7 @@ import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.BorderColor
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.NoteAdd
@@ -102,6 +103,7 @@ fun PdfEditorScreen(
     onAddAnnotation: (kind: String, content: String, normX: Float, normY: Float, colorHex: Long) -> Unit,
     onDeleteAnnotation: (Long) -> Unit,
     onAppendNewPage: (title: String, body: String) -> Unit,
+    onDeleteCurrentPage: () -> Unit,
     onBakeAndSave: () -> Unit,
     onShare: () -> Unit,
 ) {
@@ -114,7 +116,9 @@ fun PdfEditorScreen(
     var pendingPlacement by remember { mutableStateOf<Pair<Float, Float>?>(null) }
     var annotationText by remember { mutableStateOf("") }
     var showAddPageDialog by remember { mutableStateOf(false) }
-    var newPageTitle by remember { mutableStateOf("Additional Notes") }
+    var showJumpPageDialog by remember { mutableStateOf(false) }
+    var jumpPageInput by remember { mutableStateOf("") }
+    var newPageTitle by remember { mutableStateOf("") }
     var newPageBody by remember { mutableStateOf("") }
 
     val pageAnnotations = remember(state.annotations, state.currentPage) {
@@ -375,6 +379,13 @@ fun PdfEditorScreen(
                             text = "${state.currentPage + 1} / ${state.pageCount}",
                             style = MaterialTheme.typography.labelLarge,
                             fontFamily = JetBrainsMonoFamily,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    jumpPageInput = "${state.currentPage + 1}"
+                                    showJumpPageDialog = true
+                                }
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
                         )
                         IconButton(
                             enabled = state.currentPage < state.pageCount - 1,
@@ -432,15 +443,53 @@ fun PdfEditorScreen(
                     item {
                         PdfToolChip(
                             icon = Icons.Rounded.NoteAdd,
-                            label = "+ New Page",
+                            label = "+ Page",
                             selected = false,
                             onClick = { showAddPageDialog = true },
                             testTag = "pdf_tool_add_page",
                         )
                     }
+                    if (state.pageCount > 1) {
+                        item {
+                            PdfToolChip(
+                                icon = Icons.Rounded.DeleteOutline,
+                                label = "Del Page",
+                                selected = false,
+                                onClick = onDeleteCurrentPage,
+                                testTag = "pdf_tool_delete_page",
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
+
+    // Jump to Page Dialog
+    if (showJumpPageDialog) {
+        AlertDialog(
+            onDismissRequest = { showJumpPageDialog = false },
+            title = { Text("Go to Page (1 – ${state.pageCount})") },
+            text = {
+                OutlinedTextField(
+                    value = jumpPageInput,
+                    onValueChange = { jumpPageInput = it.filter(Char::isDigit) },
+                    singleLine = true,
+                    label = { Text("Page number") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val target = (jumpPageInput.toIntOrNull() ?: 1) - 1
+                    onPageChange(target)
+                    showJumpPageDialog = false
+                }) { Text("Go") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showJumpPageDialog = false }) { Text("Cancel") }
+            },
+        )
     }
 
     // Annotation Input Dialog

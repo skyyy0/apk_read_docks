@@ -276,4 +276,43 @@ object PdfEngine {
         pdf.close()
         return totalPages
     }
+
+    /**
+     * Deletes a specific page from a real PDF file and rewrites the updated PDF cleanly.
+     */
+    fun deletePageFromPdf(sourceFile: File, pageIndexToDelete: Int, outputFile: File): Int {
+        val pdf = PdfDocument()
+        val tempOut = File(outputFile.parentFile, "tmp_del_${System.currentTimeMillis()}.pdf")
+        var writtenPages = 0
+
+        ParcelFileDescriptor.open(sourceFile, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
+            PdfRenderer(pfd).use { renderer ->
+                if (renderer.pageCount <= 1) {
+                    pdf.close()
+                    return renderer.pageCount
+                }
+                for (i in 0 until renderer.pageCount) {
+                    if (i == pageIndexToDelete) continue
+                    renderer.openPage(i).use { page ->
+                        writtenPages++
+                        val w = page.width
+                        val h = page.height
+                        val bmp = Bitmap.createBitmap(w * 2, h * 2, Bitmap.Config.ARGB_8888)
+                        Canvas(bmp).drawColor(Color.WHITE)
+                        page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
+                        val outPage = pdf.startPage(PdfDocument.PageInfo.Builder(w, h, writtenPages).create())
+                        outPage.canvas.drawBitmap(bmp, null, RectF(0f, 0f, w.toFloat(), h.toFloat()), null)
+                        bmp.recycle()
+                        pdf.finishPage(outPage)
+                    }
+                }
+            }
+        }
+
+        FileOutputStream(tempOut).use { pdf.writeTo(it) }
+        pdf.close()
+        if (outputFile.exists()) outputFile.delete()
+        tempOut.renameTo(outputFile)
+        return writtenPages
+    }
 }

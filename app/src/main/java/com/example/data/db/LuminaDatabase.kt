@@ -91,7 +91,7 @@ interface BookmarkDao {
 
 @Database(
     entities = [DocumentEntity::class, PdfAnnotationEntity::class, BookmarkEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class LuminaDatabase : RoomDatabase() {
@@ -103,13 +103,22 @@ abstract class LuminaDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: LuminaDatabase? = null
 
+        private val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE documents ADD COLUMN sourceUri TEXT DEFAULT NULL")
+            }
+        }
+
         fun getInstance(context: Context): LuminaDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     LuminaDatabase::class.java,
                     "lumina_docs.db",
-                ).build().also { INSTANCE = it }
+                )
+                    .addMigrations(MIGRATION_1_2)
+                    .build()
+                    .also { INSTANCE = it }
             }
         }
     }

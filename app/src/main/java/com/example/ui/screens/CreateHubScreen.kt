@@ -9,14 +9,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForwardIos
-import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.FileUpload
+import androidx.compose.material.icons.rounded.FileOpen
+import androidx.compose.material.icons.rounded.LibraryAdd
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -34,29 +33,28 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.data.model.DocumentType
-import com.example.data.repository.TemplateSpec
 import com.example.ui.theme.DocumentFormatBadge
 import com.example.ui.theme.LiquidGlassCard
 
 @Composable
 fun CreateHubScreen(
-    templates: List<TemplateSpec>,
     onCreateBlank: (String, DocumentType) -> Unit,
-    onCreateFromTemplate: (String) -> Unit,
-    onImportFromDevice: () -> Unit,
+    onImportSingleFile: () -> Unit,
+    onImportMultipleFiles: () -> Unit,
 ) {
     var pendingCreateType by remember { mutableStateOf<DocumentType?>(null) }
     var docTitleInput by remember { mutableStateOf("") }
 
-    val quickFormats = remember {
+    val blankFormats = remember {
         listOf(
             DocumentType.PDF,
             DocumentType.XLSX,
             DocumentType.DOCX,
             DocumentType.PPTX,
-            DocumentType.MARKDOWN,
             DocumentType.CSV,
+            DocumentType.MARKDOWN,
             DocumentType.JSON,
+            DocumentType.HTML,
             DocumentType.TEXT,
         )
     }
@@ -71,28 +69,28 @@ fun CreateHubScreen(
         item {
             Column {
                 Text(
-                    text = "Create Studio",
+                    text = "Create & Open",
                     style = MaterialTheme.typography.headlineMedium,
                     color = MaterialTheme.colorScheme.onBackground,
                 )
                 Text(
-                    text = "Start blank, launch a smart template, or import from device",
+                    text = "Open real documents from device storage or create a clean blank file",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
 
-        // Import Local File Banner
+        // Open Single Document from Device
         item {
             LiquidGlassCard(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("create_import_card"),
+                    .testTag("create_import_single_card"),
                 elevated = true,
                 shape = RoundedCornerShape(22.dp),
                 contentPadding = PaddingValues(16.dp),
-                onClick = onImportFromDevice,
+                onClick = onImportSingleFile,
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -100,18 +98,18 @@ fun CreateHubScreen(
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.FileUpload,
-                        contentDescription = "Import file from device",
+                        imageVector = Icons.Rounded.FileOpen,
+                        contentDescription = "Open file from device",
                         tint = MaterialTheme.colorScheme.primary,
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Open Document from Device",
+                            text = "Open File from Device",
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         Text(
-                            text = "Supports PDF, XLSX, CSV, DOCX, PPTX, MD, JSON, HTML & TXT",
+                            text = "PDF, Excel (.xlsx/.csv), Word (.docx), Slides (.pptx), MD, JSON & Text",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -125,16 +123,58 @@ fun CreateHubScreen(
             }
         }
 
-        // Quick Blank Formats (2-column grid rows)
+        // Batch Import Multiple Documents from Device
         item {
+            LiquidGlassCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("create_import_batch_card"),
+                shape = RoundedCornerShape(22.dp),
+                contentPadding = PaddingValues(16.dp),
+                onClick = onImportMultipleFiles,
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.LibraryAdd,
+                        contentDescription = "Batch import multiple files",
+                        tint = MaterialTheme.colorScheme.secondary,
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Batch Import Multiple Files",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            text = "Select several documents at once from Downloads, Drive, or SD storage",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowForwardIos,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+
+        // Clean Blank Document Creators
+        item {
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Blank Document",
+                text = "New Blank Document",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
-        items(quickFormats.chunked(2)) { pair ->
+        items(blankFormats.chunked(2)) { pair ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -148,7 +188,7 @@ fun CreateHubScreen(
                         contentPadding = PaddingValues(14.dp),
                         onClick = {
                             pendingCreateType = type
-                            docTitleInput = "New ${type.displayName}"
+                            docTitleInput = ""
                         },
                     ) {
                         Row(
@@ -176,62 +216,6 @@ fun CreateHubScreen(
                 if (pair.size == 1) Spacer(modifier = Modifier.weight(1f))
             }
         }
-
-        // Curated Templates Section
-        item {
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.AutoAwesome,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-                Text(
-                    text = "Ready-to-Use Templates",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
-        items(templates, key = { it.id }) { tpl ->
-            LiquidGlassCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("template_${tpl.id}"),
-                shape = RoundedCornerShape(20.dp),
-                contentPadding = PaddingValues(14.dp),
-                onClick = { onCreateFromTemplate(tpl.id) },
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    DocumentFormatBadge(type = tpl.type, size = 44.dp)
-                    Spacer(modifier = Modifier.width(14.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = tpl.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Text(
-                            text = tpl.subtitle,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowForwardIos,
-                        contentDescription = "Create ${tpl.title}",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
     }
 
     pendingCreateType?.let { type ->
@@ -243,7 +227,8 @@ fun CreateHubScreen(
                     value = docTitleInput,
                     onValueChange = { docTitleInput = it },
                     singleLine = true,
-                    label = { Text("Document name") },
+                    placeholder = { Text("Untitled ${type.shortBadge}") },
+                    label = { Text("File name") },
                     modifier = Modifier.fillMaxWidth(),
                 )
             },

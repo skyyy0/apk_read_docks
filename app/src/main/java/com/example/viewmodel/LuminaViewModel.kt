@@ -15,7 +15,6 @@ import com.example.data.model.SortOrder
 import com.example.data.prefs.AppPreferences
 import com.example.data.prefs.UserSettings
 import com.example.data.repository.DocumentRepository
-import com.example.data.repository.TemplateSpec
 import com.example.engine.DocBlock
 import com.example.engine.DocBlockStyle
 import com.example.engine.PdfEngine
@@ -104,8 +103,6 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
     val prefs = AppPreferences(application)
     val repository = DocumentRepository(application, db, prefs)
 
-    val templates: List<TemplateSpec> = repository.builtInTemplates
-
     val settings: StateFlow<UserSettings> = prefs.settingsFlow.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -135,13 +132,12 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
             val matchesFav = !filter.favoritesOnly || doc.isFavorite
             matchesQuery && matchesCategory && matchesFav
         }
-        val sorted = when (filter.sortOrder) {
+        when (filter.sortOrder) {
             SortOrder.RECENT -> filtered.sortedWith(compareByDescending<DocumentEntity> { it.isPinned }.thenByDescending { it.lastOpenedAt })
             SortOrder.NAME -> filtered.sortedWith(compareByDescending<DocumentEntity> { it.isPinned }.thenBy { it.title.lowercase() })
             SortOrder.SIZE -> filtered.sortedWith(compareByDescending<DocumentEntity> { it.isPinned }.thenByDescending { it.sizeBytes })
             SortOrder.TYPE -> filtered.sortedWith(compareByDescending<DocumentEntity> { it.isPinned }.thenBy { it.type })
         }
-        sorted
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -164,7 +160,6 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
 
     init {
         viewModelScope.launch {
-            repository.ensureStarterDocuments()
             refreshCacheSize()
         }
     }
@@ -201,27 +196,34 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun createFromTemplateAndOpen(templateId: String) {
-        viewModelScope.launch {
-            _isBusy.value = true
-            val created = repository.createFromTemplate(templateId)
-            _isBusy.value = false
-            emitMessage("Template ready: ${created.title}")
-            openDocument(created)
-        }
-    }
-
     fun importFromUri(uri: Uri, openImmediately: Boolean = true) {
         viewModelScope.launch {
             _isBusy.value = true
             val imported = repository.importFromUri(uri)
             _isBusy.value = false
             if (imported != null) {
-                emitMessage("Imported ${imported.title} (${imported.docType.shortBadge})")
+                emitMessage("Opened ${imported.title} (${imported.docType.shortBadge})")
                 if (openImmediately) openDocument(imported)
             } else {
                 emitMessage("Could not read selected file")
             }
+        }
+    }
+
+    fun importMultipleUris(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        if (uris.size == 1) {
+            importFromUri(uris.first(), openImmediately = true)
+            return
+        }
+        viewModelScope.launch {
+            _isBusy.value = true
+            var count = 0
+            for (uri in uris) {
+                if (repository.importFromUri(uri) != null) count++
+            }
+            _isBusy.value = false
+            emitMessage("Imported $count of ${uris.size} real file(s) into workspace")
         }
     }
 
@@ -239,13 +241,12 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
             when (doc.docType) {
                 DocumentType.PDF -> {
                     val count = withContext(Dispatchers.IO) { PdfEngine.getPageCount(file) }.coerceAtLeast(1)
-                    val initialState = ActiveEditorState.PdfEditor(
+                    _editorState.value = ActiveEditorState.PdfEditor(
                         document = doc,
                         pageCount = count,
                         currentPage = 0,
                         nightInvert = settings.value.pdfNightInvertDefault,
                     )
-                    _editorState.value = initialState
                     pdfObserverJob = viewModelScope.launch {
                         combine(
                             repository.observeAnnotations(doc.id),
@@ -294,15 +295,31 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
                     _editorState.value = ActiveEditorState.TextEditor(
                         document = doc,
                         content = text,
-                        previewMode = doc.docType == DocumentType.MARKDOWN,
+                        previewMode = false,
                     )
                 }
             }
         }
     }
 
+    /**
+     * Closes the active editor. If Auto-Save is enabled in Settings and there are unsaved changes,
+     * persists edits to disk (and syncs back to sourceUri if writable) before closing.
+     */
     fun closeEditor() {
+        val current = _editorState.value
+        val autoSave = settings.value.autoSaveEnabled
         pdfObserverJob?.cancel()
+
+        if (autoSave) {
+            when (current) {
+                is ActiveEditorState.SpreadsheetEditor -> if (current.hasUnsavedChanges) saveSpreadsheetInternal(current, silent = true)
+                is ActiveEditorState.WordEditor -> if (current.hasUnsavedChanges) saveWordInternal(current, silent = true)
+                is ActiveEditorState.SlidesEditor -> if (current.hasUnsavedChanges) saveSlidesInternal(current, silent = true)
+                is ActiveEditorState.TextEditor -> if (current.hasUnsavedChanges) saveTextInternal(current, silent = true)
+                else -> Unit
+            }
+        }
         _editorState.value = ActiveEditorState.None
     }
 
@@ -366,6 +383,37 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
         bakeAndSavePdf()
     }
 
+    fun deleteCurrentPdfPage() {
+        val state = _editorState.value as? ActiveEditorState.PdfEditor ?: return
+        if (state.pageCount <= 1) {
+            emitMessage("Cannot delete the only page in a PDF")
+            return
+        }
+        viewModelScope.launch {
+            _isBusy.value = true
+            val file = File(state.document.filePath)
+            val remaining = withContext(Dispatchers.IO) {
+                PdfEngine.deletePageFromPdf(file, state.currentPage, file)
+            }.coerceAtLeast(1)
+            val synced = repository.updateDocumentAfterSave(
+                doc = state.document,
+                pageCount = remaining,
+                previewSnippet = "$remaining page PDF",
+            )
+            _editorState.update { current ->
+                if (current is ActiveEditorState.PdfEditor) {
+                    current.copy(
+                        pageCount = remaining,
+                        currentPage = current.currentPage.coerceAtMost(remaining - 1),
+                        renderVersion = current.renderVersion + 1,
+                    )
+                } else current
+            }
+            _isBusy.value = false
+            emitMessage(if (synced) "Page deleted & synced to device file" else "Page deleted ($remaining pages left)")
+        }
+    }
+
     fun bakeAndSavePdf() {
         val state = _editorState.value as? ActiveEditorState.PdfEditor ?: return
         viewModelScope.launch {
@@ -379,13 +427,12 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
                     outputFile = file,
                 )
             }
-            // Clear baked overlays so they don't duplicate on next render
             repository.clearAnnotationsForDocument(state.document.id)
             val newPageCount = withContext(Dispatchers.IO) { PdfEngine.getPageCount(file) }.coerceAtLeast(1)
-            repository.updateDocumentAfterSave(
+            val synced = repository.updateDocumentAfterSave(
                 doc = state.document,
                 pageCount = newPageCount,
-                previewSnippet = "$newPageCount pages • Updated PDF saved",
+                previewSnippet = "$newPageCount page PDF",
             )
             _editorState.update { current ->
                 if (current is ActiveEditorState.PdfEditor) {
@@ -397,7 +444,7 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
                 } else current
             }
             _isBusy.value = false
-            emitMessage("PDF saved permanently ($newPageCount pages)")
+            emitMessage(if (synced) "PDF saved & synced to original file ($newPageCount pages)" else "PDF saved ($newPageCount pages)")
         }
     }
 
@@ -441,7 +488,7 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
         _editorState.update { state ->
             if (state is ActiveEditorState.SpreadsheetEditor) {
                 val sheetName = name.trim().ifBlank { "Sheet ${state.workbook.sheets.size + 1}" }
-                val newSheet = SheetData(sheetName, List(14) { List(6) { "" } })
+                val newSheet = SheetData(sheetName, List(20) { List(8) { "" } })
                 val updated = state.workbook.sheets + newSheet
                 state.copy(
                     workbook = WorkbookData(updated),
@@ -489,6 +536,21 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun deleteSelectedSpreadsheetColumn() {
+        _editorState.update { state ->
+            if (state is ActiveEditorState.SpreadsheetEditor) {
+                val sheets = state.workbook.sheets.toMutableList()
+                val updated = sheets[state.activeSheetIndex].withDeletedColumn(state.selectedCol)
+                sheets[state.activeSheetIndex] = updated
+                state.copy(
+                    workbook = WorkbookData(sheets),
+                    selectedCol = state.selectedCol.coerceAtMost((updated.colCount - 1).coerceAtLeast(0)),
+                    hasUnsavedChanges = true,
+                )
+            } else state
+        }
+    }
+
     fun sortSpreadsheetBySelectedColumn(ascending: Boolean = true) {
         _editorState.update { state ->
             if (state is ActiveEditorState.SpreadsheetEditor) {
@@ -514,6 +576,10 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
 
     fun saveSpreadsheet() {
         val state = _editorState.value as? ActiveEditorState.SpreadsheetEditor ?: return
+        saveSpreadsheetInternal(state, silent = false)
+    }
+
+    private fun saveSpreadsheetInternal(state: ActiveEditorState.SpreadsheetEditor, silent: Boolean) {
         viewModelScope.launch {
             val file = File(state.document.filePath)
             withContext(Dispatchers.IO) {
@@ -523,16 +589,18 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
                     SpreadsheetEngine.writeCsv(state.workbook, file)
                 }
             }
-            repository.updateDocumentAfterSave(
+            val synced = repository.updateDocumentAfterSave(
                 doc = state.document,
                 pageCount = state.workbook.sheets.size,
                 wordCount = state.workbook.sheets.sumOf { it.rowCount },
-                previewSnippet = "${state.workbook.sheets.size} sheets • Saved",
+                previewSnippet = "${state.workbook.sheets.size} sheets",
             )
             _editorState.update {
                 if (it is ActiveEditorState.SpreadsheetEditor) it.copy(hasUnsavedChanges = false) else it
             }
-            emitMessage("Saved ${state.document.title}")
+            if (!silent) {
+                emitMessage(if (synced) "Saved & synced ${state.document.title}" else "Saved ${state.document.title}")
+            }
         }
     }
 
@@ -573,6 +641,21 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun moveWordBlock(blockId: String, moveUp: Boolean) {
+        _editorState.update { state ->
+            if (state is ActiveEditorState.WordEditor) {
+                val blocks = state.richDocument.blocks.toMutableList()
+                val idx = blocks.indexOfFirst { it.id == blockId }
+                val targetIdx = if (moveUp) idx - 1 else idx + 1
+                if (idx in blocks.indices && targetIdx in blocks.indices) {
+                    val item = blocks.removeAt(idx)
+                    blocks.add(targetIdx, item)
+                    state.copy(richDocument = RichDocument(blocks), hasUnsavedChanges = true)
+                } else state
+            } else state
+        }
+    }
+
     fun deleteWordBlock(blockId: String) {
         _editorState.update { state ->
             if (state is ActiveEditorState.WordEditor && state.richDocument.blocks.size > 1) {
@@ -605,13 +688,17 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
 
     fun saveWordDocument() {
         val state = _editorState.value as? ActiveEditorState.WordEditor ?: return
+        saveWordInternal(state, silent = false)
+    }
+
+    private fun saveWordInternal(state: ActiveEditorState.WordEditor, silent: Boolean) {
         viewModelScope.launch {
             val file = File(state.document.filePath)
             withContext(Dispatchers.IO) {
                 WordDocumentEngine.writeDocx(state.richDocument, file)
             }
             val snippet = state.richDocument.blocks.firstOrNull { it.text.isNotBlank() }?.text?.take(80) ?: "Word document"
-            repository.updateDocumentAfterSave(
+            val synced = repository.updateDocumentAfterSave(
                 doc = state.document,
                 wordCount = state.richDocument.wordCount,
                 previewSnippet = snippet,
@@ -619,7 +706,9 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
             _editorState.update {
                 if (it is ActiveEditorState.WordEditor) it.copy(hasUnsavedChanges = false) else it
             }
-            emitMessage("Saved ${state.document.title}.docx")
+            if (!silent) {
+                emitMessage(if (synced) "Saved & synced ${state.document.title}.docx" else "Saved ${state.document.title}.docx")
+            }
         }
     }
 
@@ -654,7 +743,7 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
             if (state is ActiveEditorState.SlidesEditor) {
                 val newSlide = SlideItem(
                     title = "Slide ${state.deck.slides.size + 1}",
-                    bullets = listOf("Key point one", "Key point two"),
+                    bullets = emptyList(),
                 )
                 val updated = state.deck.slides + newSlide
                 state.copy(
@@ -681,18 +770,24 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
 
     fun saveSlides() {
         val state = _editorState.value as? ActiveEditorState.SlidesEditor ?: return
+        saveSlidesInternal(state, silent = false)
+    }
+
+    private fun saveSlidesInternal(state: ActiveEditorState.SlidesEditor, silent: Boolean) {
         viewModelScope.launch {
             val file = File(state.document.filePath)
             withContext(Dispatchers.IO) { PresentationEngine.writePptx(state.deck, file) }
-            repository.updateDocumentAfterSave(
+            val synced = repository.updateDocumentAfterSave(
                 doc = state.document,
                 pageCount = state.deck.slides.size,
-                previewSnippet = "${state.deck.slides.size} slides • Saved",
+                previewSnippet = "${state.deck.slides.size} slides",
             )
             _editorState.update {
                 if (it is ActiveEditorState.SlidesEditor) it.copy(hasUnsavedChanges = false) else it
             }
-            emitMessage("Saved presentation (${state.deck.slides.size} slides)")
+            if (!silent) {
+                emitMessage(if (synced) "Saved & synced presentation" else "Saved presentation (${state.deck.slides.size} slides)")
+            }
         }
     }
 
@@ -713,12 +808,16 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
 
     fun saveTextDocument() {
         val state = _editorState.value as? ActiveEditorState.TextEditor ?: return
+        saveTextInternal(state, silent = false)
+    }
+
+    private fun saveTextInternal(state: ActiveEditorState.TextEditor, silent: Boolean) {
         viewModelScope.launch {
             val file = File(state.document.filePath)
             withContext(Dispatchers.IO) { TextDocumentEngine.writeText(state.content, file) }
             val words = TextDocumentEngine.countWords(state.content)
             val snippet = state.content.lines().firstOrNull { it.isNotBlank() }?.take(80) ?: state.document.docType.displayName
-            repository.updateDocumentAfterSave(
+            val synced = repository.updateDocumentAfterSave(
                 doc = state.document,
                 wordCount = words,
                 previewSnippet = snippet,
@@ -726,7 +825,9 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
             _editorState.update {
                 if (it is ActiveEditorState.TextEditor) it.copy(hasUnsavedChanges = false) else it
             }
-            emitMessage("Saved ${state.document.title}")
+            if (!silent) {
+                emitMessage(if (synced) "Saved & synced ${state.document.title}" else "Saved ${state.document.title}")
+            }
         }
     }
 

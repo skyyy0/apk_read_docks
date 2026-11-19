@@ -530,29 +530,66 @@ fun LibraryScreen(
                 LiquidGlassCard(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(24.dp),
-                    contentPadding = PaddingValues(28.dp),
+                    contentPadding = PaddingValues(24.dp),
                 ) {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.FolderOpen,
-                            contentDescription = "No documents",
+                            contentDescription = "Empty workspace",
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(40.dp),
+                            modifier = Modifier.size(42.dp),
                         )
                         Text(
-                            text = "No matching documents",
+                            text = if (allDocuments.isEmpty()) "Your Workspace is Ready" else "No matching documents",
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         Text(
-                            text = "Import any PDF, Excel, Word, or Slide file from your device or create a fresh one.",
+                            text = if (allDocuments.isEmpty()) {
+                                "Open real PDF, Excel, Word, PowerPoint, or Text files from your phone storage, or create a brand-new blank file."
+                            } else {
+                                "Try clearing your search or category filter."
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        if (allDocuments.isEmpty()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primary)
+                                        .clickable(onClick = onImportDeviceFile)
+                                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                                        .testTag("empty_import_button"),
+                                ) {
+                                    Text(
+                                        text = "Open File",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primaryContainer)
+                                        .clickable(onClick = onJumpToCreate)
+                                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                                        .testTag("empty_create_button"),
+                                ) {
+                                    Text(
+                                        text = "Create Blank",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

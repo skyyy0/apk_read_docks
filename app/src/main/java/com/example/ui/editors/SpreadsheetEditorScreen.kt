@@ -81,6 +81,7 @@ fun SpreadsheetEditorScreen(
     onAddRow: () -> Unit,
     onAddColumn: () -> Unit,
     onDeleteSelectedRow: () -> Unit,
+    onDeleteSelectedColumn: () -> Unit,
     onSortColumn: () -> Unit,
     onSave: () -> Unit,
     onExportPdf: () -> Unit,
@@ -444,6 +445,7 @@ fun SpreadsheetEditorScreen(
                     SheetActionChip(Icons.Rounded.ViewStream, "+ Row", onAddRow, Modifier.weight(1f))
                     SheetActionChip(Icons.Rounded.ViewColumn, "+ Col", onAddColumn, Modifier.weight(1f))
                     SheetActionChip(Icons.Rounded.DeleteSweep, "- Row", onDeleteSelectedRow, Modifier.weight(1f))
+                    SheetActionChip(Icons.Rounded.DeleteSweep, "- Col", onDeleteSelectedColumn, Modifier.weight(1f))
                 }
             }
         }

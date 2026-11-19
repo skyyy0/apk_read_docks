@@ -102,6 +102,7 @@ data class DocumentEntity(
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
     val lastOpenedAt: Long = System.currentTimeMillis(),
+    val sourceUri: String? = null,
 ) {
     val docType: DocumentType
         get() = runCatching { DocumentType.valueOf(type) }.getOrDefault(DocumentType.TEXT)

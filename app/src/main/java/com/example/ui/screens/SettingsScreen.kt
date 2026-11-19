@@ -335,8 +335,8 @@ fun SettingsScreen(
                 SettingsDivider()
                 SettingsToggleRow(
                     icon = Icons.Rounded.Save,
-                    title = "Auto-Save Prompt Guard",
-                    subtitle = "Tracks unsaved edits in Word, Excel, Slides & Code",
+                    title = "Auto-Save on Exit",
+                    subtitle = "Automatically saves & syncs unsaved edits when leaving any editor",
                     checked = settings.autoSaveEnabled,
                     onCheckedChange = onAutoSaveToggle,
                     testTag = "toggle_auto_save",

@@ -147,6 +147,12 @@ private fun LuminaAppRoot(viewModel: LuminaViewModel) {
         if (uri != null) viewModel.importFromUri(uri, openImmediately = true)
     }
 
+    val importMultipleFilesLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isNotEmpty()) viewModel.importMultipleUris(uris)
+    }
+
     val exportDocLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("*/*")
     ) { uri ->
@@ -169,22 +175,23 @@ private fun LuminaAppRoot(viewModel: LuminaViewModel) {
         if (uri != null) viewModel.restoreBackup(uri)
     }
 
-    val launchImport: () -> Unit = {
-        importFileLauncher.launch(
-            arrayOf(
-                "application/pdf",
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                "text/csv",
-                "text/plain",
-                "text/markdown",
-                "application/json",
-                "text/html",
-                "*/*",
-            )
+    val supportedMimeTypes = remember {
+        arrayOf(
+            "application/pdf",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "text/csv",
+            "text/plain",
+            "text/markdown",
+            "application/json",
+            "text/html",
+            "*/*",
         )
     }
+
+    val launchImport: () -> Unit = { importFileLauncher.launch(supportedMimeTypes) }
+    val launchBatchImport: () -> Unit = { importMultipleFilesLauncher.launch(supportedMimeTypes) }
 
     val shareDocument: (DocumentEntity) -> Unit = { doc ->
         val shareIntent = viewModel.createShareIntent(doc)
@@ -250,10 +257,9 @@ private fun LuminaAppRoot(viewModel: LuminaViewModel) {
                                     onDeleteDocument = viewModel::deleteDocument,
                                 )
                                 "create" -> CreateHubScreen(
-                                    templates = viewModel.templates,
                                     onCreateBlank = viewModel::createBlankAndOpen,
-                                    onCreateFromTemplate = viewModel::createFromTemplateAndOpen,
-                                    onImportFromDevice = launchImport,
+                                    onImportSingleFile = launchImport,
+                                    onImportMultipleFiles = launchBatchImport,
                                 )
                                 "tools" -> ToolsHubScreen(
                                     allDocuments = allDocuments,
@@ -312,6 +318,7 @@ private fun LuminaAppRoot(viewModel: LuminaViewModel) {
                         onAddAnnotation = viewModel::addPdfAnnotation,
                         onDeleteAnnotation = viewModel::deletePdfAnnotation,
                         onAppendNewPage = viewModel::appendNewPdfPage,
+                        onDeleteCurrentPage = viewModel::deleteCurrentPdfPage,
                         onBakeAndSave = viewModel::bakeAndSavePdf,
                         onShare = { shareDocument(active.document) },
                     )
@@ -328,6 +335,7 @@ private fun LuminaAppRoot(viewModel: LuminaViewModel) {
                         onAddRow = viewModel::addSpreadsheetRow,
                         onAddColumn = viewModel::addSpreadsheetColumn,
                         onDeleteSelectedRow = viewModel::deleteSelectedSpreadsheetRow,
+                        onDeleteSelectedColumn = viewModel::deleteSelectedSpreadsheetColumn,
                         onSortColumn = { viewModel.sortSpreadsheetBySelectedColumn(ascending = true) },
                         onSave = viewModel::saveSpreadsheet,
                         onExportPdf = {
@@ -344,6 +352,7 @@ private fun LuminaAppRoot(viewModel: LuminaViewModel) {
                         onSelectBlock = viewModel::selectWordBlock,
                         onUpdateBlock = viewModel::updateWordBlock,
                         onAddBlock = viewModel::addWordBlock,
+                        onMoveBlock = viewModel::moveWordBlock,
                         onDeleteBlock = viewModel::deleteWordBlock,
                         onFindReplace = viewModel::replaceTextInWord,
                         onSave = viewModel::saveWordDocument,

@@ -28,6 +28,8 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.CheckBox
 import androidx.compose.material.icons.rounded.CheckBoxOutlineBlank
 import androidx.compose.material.icons.rounded.DeleteOutline
@@ -80,6 +82,7 @@ fun WordEditorScreen(
     onSelectBlock: (String) -> Unit,
     onUpdateBlock: (String, (DocBlock) -> DocBlock) -> Unit,
     onAddBlock: (DocBlockStyle) -> Unit,
+    onMoveBlock: (String, Boolean) -> Unit,
     onDeleteBlock: (String) -> Unit,
     onFindReplace: (String, String) -> Unit,
     onSave: () -> Unit,
@@ -261,6 +264,18 @@ fun WordEditorScreen(
                                 ),
                         ) {
                             Icon(Icons.Rounded.FormatItalic, contentDescription = "Toggle Italic")
+                        }
+                        IconButton(
+                            enabled = selectedBlock != null,
+                            onClick = { selectedBlock?.let { onMoveBlock(it.id, true) } },
+                        ) {
+                            Icon(Icons.Rounded.ArrowUpward, contentDescription = "Move block up")
+                        }
+                        IconButton(
+                            enabled = selectedBlock != null,
+                            onClick = { selectedBlock?.let { onMoveBlock(it.id, false) } },
+                        ) {
+                            Icon(Icons.Rounded.ArrowDownward, contentDescription = "Move block down")
                         }
                         IconButton(
                             enabled = state.richDocument.blocks.size > 1 && selectedBlock != null,

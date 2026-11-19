@@ -38,13 +38,6 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
-data class TemplateSpec(
-    val id: String,
-    val title: String,
-    val subtitle: String,
-    val type: DocumentType,
-)
-
 class DocumentRepository(
     private val context: Context,
     private val db: LuminaDatabase,
@@ -64,66 +57,9 @@ class DocumentRepository(
     fun observeBookmarks(docId: Long): Flow<List<BookmarkEntity>> =
         db.bookmarkDao().observeForDocument(docId)
 
-    val builtInTemplates: List<TemplateSpec> = listOf(
-        TemplateSpec(
-            id = "tpl_budget_xlsx",
-            title = "Monthly Budget Tracker",
-            subtitle = "Live SUM & balance formulas (.xlsx)",
-            type = DocumentType.XLSX,
-        ),
-        TemplateSpec(
-            id = "tpl_invoice_xlsx",
-            title = "Client Invoice Pro",
-            subtitle = "Auto-calculated line totals & tax (.xlsx)",
-            type = DocumentType.XLSX,
-        ),
-        TemplateSpec(
-            id = "tpl_proposal_docx",
-            title = "Project Proposal",
-            subtitle = "Structured headings, tasks & quotes (.docx)",
-            type = DocumentType.DOCX,
-        ),
-        TemplateSpec(
-            id = "tpl_meeting_docx",
-            title = "Meeting Minutes",
-            subtitle = "Action checklists & decisions (.docx)",
-            type = DocumentType.DOCX,
-        ),
-        TemplateSpec(
-            id = "tpl_pitch_pptx",
-            title = "Product Pitch Deck",
-            subtitle = "Widescreen multi-slide presentation (.pptx)",
-            type = DocumentType.PPTX,
-        ),
-        TemplateSpec(
-            id = "tpl_guide_pdf",
-            title = "Executive Brief PDF",
-            subtitle = "Multi-page crisp PDF ready to annotate (.pdf)",
-            type = DocumentType.PDF,
-        ),
-        TemplateSpec(
-            id = "tpl_spec_md",
-            title = "Technical Spec Note",
-            subtitle = "Live Markdown with code & checklists (.md)",
-            type = DocumentType.MARKDOWN,
-        ),
-        TemplateSpec(
-            id = "tpl_config_json",
-            title = "Structured JSON Config",
-            subtitle = "Validated & pretty-printable data (.json)",
-            type = DocumentType.JSON,
-        ),
-    )
-
-    suspend fun ensureStarterDocuments() = withContext(Dispatchers.IO) {
-        if (db.documentDao().count() > 0) return@withContext
-        createFromTemplate("tpl_guide_pdf", pinned = true)
-        createFromTemplate("tpl_budget_xlsx", pinned = true)
-        createFromTemplate("tpl_proposal_docx", pinned = false)
-        createFromTemplate("tpl_pitch_pptx", pinned = false)
-        createFromTemplate("tpl_spec_md", pinned = false)
-    }
-
+    /**
+     * Creates a genuinely clean, blank real document file on disk with zero dummy or simulated content.
+     */
     suspend fun createBlankDocument(title: String, type: DocumentType): DocumentEntity = withContext(Dispatchers.IO) {
         val cleanTitle = title.trim().ifBlank { "Untitled ${type.shortBadge}" }
         val fileName = uniqueFileName(cleanTitle, type.extension)
@@ -136,99 +72,69 @@ class DocumentRepository(
         when (type) {
             DocumentType.PDF -> {
                 PdfEngine.createPdfFromTextPages(
-                    listOf(
-                        PdfTextPage(
-                            title = cleanTitle,
-                            body = "Created in Lumina Docs.\nTap the Annotate button to add text overlays, highlights, sticky notes, or append new pages directly into this PDF.",
-                        )
-                    ),
+                    listOf(PdfTextPage(title = cleanTitle, body = "")),
                     file,
                 )
                 pages = 1
-                words = 24
-                snippet = "Blank PDF canvas ready for annotations & pages"
+                snippet = "1 page PDF"
             }
             DocumentType.XLSX -> {
                 val wb = WorkbookData(
                     listOf(
                         SheetData(
                             name = "Sheet 1",
-                            rows = listOf(
-                                listOf("Item", "Qty", "Price", "Total", "Notes", ""),
-                                listOf("Sample Item", "2", "50", "=B2*C2", "Edit formula in fx bar", ""),
-                                listOf("Total", "", "", "=SUM(D2:D2)", "", ""),
-                            ) + List(11) { List(6) { "" } },
+                            rows = List(20) { List(8) { "" } },
                         )
                     )
                 )
                 SpreadsheetEngine.writeXlsx(wb, file)
                 pages = 1
-                words = 12
-                snippet = "1 sheet • Live Excel formulas enabled"
+                snippet = "1 sheet Excel workbook"
             }
             DocumentType.CSV -> {
                 val wb = WorkbookData(
                     listOf(
                         SheetData(
-                            name = "Data",
-                            rows = listOf(
-                                listOf("Column A", "Column B", "Column C", "Column D"),
-                                listOf("", "", "", ""),
-                            ) + List(10) { List(4) { "" } },
+                            name = cleanTitle,
+                            rows = List(16) { List(6) { "" } },
                         )
                     )
                 )
                 SpreadsheetEngine.writeCsv(wb, file)
-                snippet = "Comma-separated table"
+                snippet = "CSV table"
             }
             DocumentType.DOCX -> {
                 val doc = RichDocument(
-                    listOf(
-                        DocBlock(style = DocBlockStyle.HEADING1, text = cleanTitle, isBold = true),
-                        DocBlock(style = DocBlockStyle.BODY, text = "Start writing your document here. Tap + to add headings, bullets, checklists, quotes, or code blocks."),
-                    )
+                    listOf(DocBlock(style = DocBlockStyle.BODY, text = ""))
                 )
                 WordDocumentEngine.writeDocx(doc, file)
-                words = doc.wordCount
-                snippet = doc.blocks.last().text.take(80)
+                snippet = "Word document"
             }
             DocumentType.PPTX -> {
                 val deck = SlideDeck(
-                    listOf(
-                        SlideItem(
-                            title = cleanTitle,
-                            bullets = listOf("Key insight one", "Key insight two", "Next steps"),
-                        )
-                    )
+                    listOf(SlideItem(title = cleanTitle, bullets = emptyList()))
                 )
                 PresentationEngine.writePptx(deck, file)
                 pages = 1
-                words = 10
-                snippet = "1 slide • Widescreen deck"
+                snippet = "1 slide presentation"
             }
             DocumentType.MARKDOWN -> {
-                val md = "# $cleanTitle\n\nWrite with **Markdown** and switch to Live Preview anytime.\n\n- [ ] First task\n- [ ] Export to PDF or DOCX\n"
-                TextDocumentEngine.writeText(md, file)
-                words = TextDocumentEngine.countWords(md)
-                snippet = "Markdown note with live preview"
+                TextDocumentEngine.writeText("", file)
+                snippet = "Markdown note"
             }
             DocumentType.JSON -> {
-                val json = "{\n  \"name\": \"$cleanTitle\",\n  \"version\": \"1.0.0\",\n  \"items\": []\n}\n"
+                val json = "{\n  \n}\n"
                 TextDocumentEngine.writeText(json, file)
-                words = TextDocumentEngine.countWords(json)
-                snippet = "Structured JSON document"
+                snippet = "JSON document"
             }
             DocumentType.HTML -> {
-                val html = "<!DOCTYPE html>\n<html>\n<head><title>$cleanTitle</title></head>\n<body>\n  <h1>$cleanTitle</h1>\n  <p>Edit HTML content here.</p>\n</body>\n</html>\n"
+                val html = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <title>$cleanTitle</title>\n</head>\n<body>\n  \n</body>\n</html>\n"
                 TextDocumentEngine.writeText(html, file)
-                words = TextDocumentEngine.countWords(html)
-                snippet = "HTML web document"
+                snippet = "HTML document"
             }
             DocumentType.TEXT -> {
-                val txt = "$cleanTitle\n\n"
-                TextDocumentEngine.writeText(txt, file)
-                words = TextDocumentEngine.countWords(txt)
-                snippet = "Plain text document"
+                TextDocumentEngine.writeText("", file)
+                snippet = "Plain text"
             }
         }
 
@@ -245,247 +151,31 @@ class DocumentRepository(
             createdAt = now,
             updatedAt = now,
             lastOpenedAt = now,
+            sourceUri = null,
         )
         val id = db.documentDao().insert(entity)
         entity.copy(id = id)
     }
 
-    suspend fun createFromTemplate(templateId: String, pinned: Boolean = false): DocumentEntity =
-        withContext(Dispatchers.IO) {
-            val spec = builtInTemplates.firstOrNull { it.id == templateId }
-                ?: return@withContext createBlankDocument("New Document", DocumentType.DOCX)
-
-            val fileName = uniqueFileName(spec.title, spec.type.extension)
-            val file = File(docsDir, fileName)
-            var pages = 1
-            var words = 0
-            var snippet = spec.subtitle
-
-            when (templateId) {
-                "tpl_budget_xlsx" -> {
-                    val wb = WorkbookData(
-                        listOf(
-                            SheetData(
-                                name = "Monthly Budget",
-                                rows = listOf(
-                                    listOf("Category", "Planned", "Actual", "Variance", "Status", "Notes"),
-                                    listOf("Housing & Utilities", "1200", "1180", "=B2-C2", "=IF(D2>=0,\"On Track\",\"Over\")", "Electricity + Fiber"),
-                                    listOf("Groceries & Dining", "550", "490", "=B3-C3", "=IF(D3>=0,\"On Track\",\"Over\")", "Weekly market"),
-                                    listOf("Transport & Fuel", "220", "195", "=B4-C4", "=IF(D4>=0,\"On Track\",\"Over\")", "Commute pass"),
-                                    listOf("Cloud & Subscriptions", "95", "110", "=B5-C5", "=IF(D5>=0,\"On Track\",\"Over\")", "Annual renewal"),
-                                    listOf("Savings & Investments", "800", "850", "=B6-C6", "=IF(D6>=0,\"On Track\",\"Extra\")", "Index fund"),
-                                    listOf("TOTAL", "=SUM(B2:B6)", "=SUM(C2:C6)", "=SUM(D2:D6)", "Summary", "Auto-calculated"),
-                                    listOf("AVERAGE", "=AVERAGE(B2:B6)", "=AVERAGE(C2:C6)", "=AVERAGE(D2:D6)", "", ""),
-                                ) + List(6) { List(6) { "" } },
-                            ),
-                            SheetData(
-                                name = "Income",
-                                rows = listOf(
-                                    listOf("Source", "Amount", "Tax %", "Net Income", "", ""),
-                                    listOf("Primary Salary", "4200", "0.10", "=B2*(1-C2)", "", ""),
-                                    listOf("Freelance Projects", "950", "0.05", "=B3*(1-C3)", "", ""),
-                                    listOf("Total Net", "=SUM(B2:B3)", "", "=SUM(D2:D3)", "", ""),
-                                ) + List(8) { List(6) { "" } },
-                            ),
-                        )
-                    )
-                    SpreadsheetEngine.writeXlsx(wb, file)
-                    pages = 2
-                    words = 48
-                    snippet = "2 sheets • Live SUM, AVERAGE & IF formulas"
-                }
-                "tpl_invoice_xlsx" -> {
-                    val wb = WorkbookData(
-                        listOf(
-                            SheetData(
-                                name = "Invoice #2026-01",
-                                rows = listOf(
-                                    listOf("Service / Item", "Qty", "Unit Price", "Line Total", "Category", ""),
-                                    listOf("Mobile UI Architecture", "1", "1800", "=B2*C2", "Design", ""),
-                                    listOf("Android Native Engine", "1", "2400", "=B3*C3", "Engineering", ""),
-                                    listOf("QA & CI/CD Pipeline", "1", "650", "=B4*C4", "DevOps", ""),
-                                    listOf("Subtotal", "", "", "=SUM(D2:D4)", "", ""),
-                                    listOf("Tax (11%)", "", "", "=D5*0.11", "", ""),
-                                    listOf("GRAND TOTAL", "", "", "=D5+D6", "Due 14 Days", ""),
-                                ) + List(7) { List(6) { "" } },
-                            )
-                        )
-                    )
-                    SpreadsheetEngine.writeXlsx(wb, file)
-                    pages = 1
-                    words = 35
-                    snippet = "Auto-calculated invoice with tax & grand total"
-                }
-                "tpl_proposal_docx" -> {
-                    val doc = RichDocument(
-                        listOf(
-                            DocBlock(style = DocBlockStyle.HEADING1, text = "Q4 Mobile Experience Redesign", isBold = true),
-                            DocBlock(style = DocBlockStyle.QUOTE, text = "Prepared with Lumina Docs — universal offline-first editing with instant PDF & Office export.", isItalic = true),
-                            DocBlock(style = DocBlockStyle.HEADING2, text = "1. Executive Summary", isBold = true),
-                            DocBlock(style = DocBlockStyle.BODY, text = "Our objective is to deliver a fluid, liquid-glass document workflow across Android 5 through the latest Android release with sub-second file loading and zero bloat."),
-                            DocBlock(style = DocBlockStyle.HEADING2, text = "2. Core Deliverables", isBold = true),
-                            DocBlock(style = DocBlockStyle.BULLET, text = "Native PDF reader with page annotations, night-ink invert, and multi-PDF merge"),
-                            DocBlock(style = DocBlockStyle.BULLET, text = "Real XLSX/CSV spreadsheet editor with live formula recalculation"),
-                            DocBlock(style = DocBlockStyle.BULLET, text = "Rich DOCX & Markdown studio with instant cross-format conversion"),
-                            DocBlock(style = DocBlockStyle.HEADING2, text = "3. Launch Checklist", isBold = true),
-                            DocBlock(style = DocBlockStyle.CHECKLIST, text = "Finalize liquid-glass light & dark design tokens", isChecked = true),
-                            DocBlock(style = DocBlockStyle.CHECKLIST, text = "Verify local backup & restore archive integrity", isChecked = true),
-                            DocBlock(style = DocBlockStyle.CHECKLIST, text = "Publish automated GitHub Actions release APK", isChecked = false),
-                        )
-                    )
-                    WordDocumentEngine.writeDocx(doc, file)
-                    words = doc.wordCount
-                    snippet = "Executive proposal with headings, bullets & checklist"
-                }
-                "tpl_meeting_docx" -> {
-                    val doc = RichDocument(
-                        listOf(
-                            DocBlock(style = DocBlockStyle.HEADING1, text = "Weekly Engineering Sync", isBold = true),
-                            DocBlock(style = DocBlockStyle.BODY, text = "Date: Today  •  Owner: sky  •  Status: Active"),
-                            DocBlock(style = DocBlockStyle.HEADING2, text = "Key Decisions", isBold = true),
-                            DocBlock(style = DocBlockStyle.BULLET, text = "Keep APK footprint lightweight using zero-bloat native OOXML & PDF engines"),
-                            DocBlock(style = DocBlockStyle.BULLET, text = "Enable Power Saving Mode toggle for battery-conscious reading sessions"),
-                            DocBlock(style = DocBlockStyle.HEADING2, text = "Action Items", isBold = true),
-                            DocBlock(style = DocBlockStyle.CHECKLIST, text = "Review spreadsheet formula parser coverage", isChecked = true),
-                            DocBlock(style = DocBlockStyle.CHECKLIST, text = "Export PDF summary for stakeholders", isChecked = false),
-                        )
-                    )
-                    WordDocumentEngine.writeDocx(doc, file)
-                    words = doc.wordCount
-                    snippet = "Meeting notes with decisions & action items"
-                }
-                "tpl_pitch_pptx" -> {
-                    val deck = SlideDeck(
-                        listOf(
-                            SlideItem(
-                                title = "Lumina Docs Studio",
-                                bullets = listOf(
-                                    "One lightweight Android suite for PDF, Excel, Word, Slides & Code",
-                                    "iOS-inspired Liquid Glass design with silky 60fps micro-interactions",
-                                    "Engineered by sky for speed from Android 5 to the latest release",
-                                ),
-                                speakerNotes = "Open with speed and lightweight architecture highlights.",
-                            ),
-                            SlideItem(
-                                title = "Beyond Traditional PDF Readers",
-                                bullets = listOf(
-                                    "Edit & burn annotations directly into real PDF files",
-                                    "Live Excel formula engine (=SUM, =AVERAGE, =IF) on mobile",
-                                    "Instant cross-format converter: DOCX, XLSX, PPTX, MD -> PDF",
-                                ),
-                                speakerNotes = "Demonstrate live conversion and PDF merge in Tools tab.",
-                            ),
-                            SlideItem(
-                                title = "Privacy, Backup & Battery Care",
-                                bullets = listOf(
-                                    "100% offline-ready local workspace with zero tracking",
-                                    "One-tap full .luminabak archive backup & restore",
-                                    "Smart Power Saving Mode lowers render DPI & saves OLED battery",
-                                ),
-                                speakerNotes = "Show Settings screen with Power Saving Mode toggle.",
-                            ),
-                        )
-                    )
-                    PresentationEngine.writePptx(deck, file)
-                    pages = deck.slides.size
-                    words = 74
-                    snippet = "3 widescreen slides • Editable deck & PDF export"
-                }
-                "tpl_guide_pdf" -> {
-                    PdfEngine.createPdfFromTextPages(
-                        listOf(
-                            PdfTextPage(
-                                title = "Welcome to Lumina Docs",
-                                body = "Lumina Docs is your all-in-one lightweight document studio crafted by sky.\n\n" +
-                                    "Read, edit, annotate, convert, and merge real PDF, Excel (.xlsx/.csv), Word (.docx), PowerPoint (.pptx), Markdown (.md), and JSON files seamlessly on Android.\n\n" +
-                                    "Try tapping the Annotate controls below to place text overlays, highlights, or sticky notes directly onto this page, then tap Save PDF to bake your edits permanently into the file.",
-                            ),
-                            PdfTextPage(
-                                title = "Pro Tips & Power Features",
-                                body = "1. Night-Ink Reading: Toggle the moon icon in the PDF toolbar to invert bright white pages into an eye-friendly dark canvas.\n\n" +
-                                    "2. Universal Converter: Open the Tools tab to convert any Word, Excel, Presentation, or Markdown file into a clean PDF or another format.\n\n" +
-                                    "3. Power Saving Mode: Enable Mode Hemat Daya in Settings to switch to low-power render DPI and conserve battery during long reading sessions.\n\n" +
-                                    "4. Full Local Backup: Export your entire library and settings into a single .luminabak archive anytime.",
-                            ),
-                        ),
-                        file,
-                    )
-                    pages = 2
-                    words = 148
-                    snippet = "2 pages • Quick-start guide ready to annotate"
-                }
-                "tpl_spec_md" -> {
-                    val md = """# Lumina Docs Architecture Spec
-
-> Lightweight native Kotlin engines designed for speed, clarity, and reliability.
-
-## Supported Formats
-- **PDF** (`.pdf`) — Render, annotate, append pages, merge & export
-- **Excel** (`.xlsx`, `.csv`) — Multi-sheet grid + live `=SUM`, `=AVERAGE`, `=IF` engine
-- **Word** (`.docx`) — Block editor with headings, checklists, quotes & PDF export
-- **Slides** (`.pptx`) — Widescreen deck editor & 16:9 PDF export
-- **Notes & Code** (`.md`, `.json`, `.html`, `.txt`) — Syntax helpers & live preview
-
-## Release Checklist
-- [x] Consistent `applicationId` (`com.luminadocs.id`) for seamless in-place updates
-- [x] Zero broad storage permissions (Storage Access Framework compliant)
-- [ ] Push to GitHub Actions workflow for automated `.apk` release
-"""
-                    TextDocumentEngine.writeText(md, file)
-                    words = TextDocumentEngine.countWords(md)
-                    snippet = "Markdown technical specification with live preview"
-                }
-                "tpl_config_json" -> {
-                    val json = """{
-  "app": "Lumina Docs",
-  "developer": "sky",
-  "packageId": "com.luminadocs.id",
-  "features": [
-    "PDF Reader & Annotator",
-    "Excel XLSX/CSV Formula Engine",
-    "Word DOCX Rich Editor",
-    "PowerPoint PPTX Deck Editor",
-    "Universal Format Converter",
-    "Power Saving Mode & Full Backup"
-  ],
-  "version": "1.0.0"
-}
-"""
-                    TextDocumentEngine.writeText(json, file)
-                    words = TextDocumentEngine.countWords(json)
-                    snippet = "Formatted JSON with live syntax validation"
-                }
-                else -> return@withContext createBlankDocument(spec.title, spec.type)
-            }
-
-            val now = System.currentTimeMillis()
-            val entity = DocumentEntity(
-                title = spec.title,
-                fileName = fileName,
-                filePath = file.absolutePath,
-                type = spec.type.name,
-                sizeBytes = file.length(),
-                isPinned = pinned,
-                pageCount = pages,
-                wordCount = words,
-                previewSnippet = snippet,
-                createdAt = now,
-                updatedAt = now,
-                lastOpenedAt = now,
-            )
-            val id = db.documentDao().insert(entity)
-            entity.copy(id = id)
-        }
-
     /**
-     * Imports any real document from device storage using zero-permission SAF ContentResolver.
+     * Imports any real document from device storage using zero-permission SAF ContentResolver,
+     * preserving persistable read/write URI permission when offered by the document provider.
      */
     suspend fun importFromUri(uri: Uri): DocumentEntity? = withContext(Dispatchers.IO) {
         val resolver = context.contentResolver
+        runCatching {
+            val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            resolver.takePersistableUriPermission(uri, flags)
+        }.onFailure {
+            runCatching {
+                resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+        }
+
         val mime = resolver.getType(uri)
-        val originalName = queryDisplayName(uri) ?: "Imported_${System.currentTimeMillis()}.txt"
+        val originalName = queryDisplayName(uri) ?: "Document_${System.currentTimeMillis()}.txt"
         val docType = DocumentType.fromFileName(originalName, mime)
-        val baseTitle = originalName.substringBeforeLast('.').ifBlank { "Imported Document" }
+        val baseTitle = originalName.substringBeforeLast('.').ifBlank { originalName }
         val fileName = uniqueFileName(baseTitle, docType.extension)
         val destFile = File(docsDir, fileName)
 
@@ -509,9 +199,25 @@ class DocumentRepository(
             createdAt = now,
             updatedAt = now,
             lastOpenedAt = now,
+            sourceUri = uri.toString(),
         )
         val id = db.documentDao().insert(entity)
         entity.copy(id = id)
+    }
+
+    /**
+     * Writes edits back directly to the original external SAF file on device storage when writable.
+     */
+    suspend fun syncBackToSourceUri(doc: DocumentEntity): Boolean = withContext(Dispatchers.IO) {
+        val uriStr = doc.sourceUri ?: return@withContext false
+        val localFile = File(doc.filePath)
+        if (!localFile.exists()) return@withContext false
+        runCatching {
+            val uri = Uri.parse(uriStr)
+            context.contentResolver.openOutputStream(uri, "wt")?.use { out ->
+                FileInputStream(localFile).use { input -> input.copyTo(out) }
+            } != null
+        }.getOrDefault(false)
     }
 
     private fun inspectFileMetadata(file: File, type: DocumentType): Triple<Int, Int, String> {
@@ -519,7 +225,7 @@ class DocumentRepository(
             when (type) {
                 DocumentType.PDF -> {
                     val p = PdfEngine.getPageCount(file).coerceAtLeast(1)
-                    Triple(p, 0, "$p page PDF imported from device")
+                    Triple(p, 0, "$p page PDF")
                 }
                 DocumentType.XLSX -> {
                     val wb = SpreadsheetEngine.readXlsx(file)
@@ -550,7 +256,7 @@ class DocumentRepository(
     }
 
     /**
-     * Universal Format Converter: converts an existing document into a new file of targetType!
+     * Universal Format Converter: converts an existing real document into a new file of targetType.
      */
     suspend fun convertDocument(source: DocumentEntity, targetType: DocumentType): DocumentEntity? =
         withContext(Dispatchers.IO) {
@@ -692,6 +398,7 @@ class DocumentRepository(
             filePath = outFile.absolutePath,
             sizeBytes = outFile.length(),
             isPinned = false,
+            sourceUri = null,
             createdAt = now,
             updatedAt = now,
             lastOpenedAt = now,
@@ -728,7 +435,7 @@ class DocumentRepository(
         pageCount: Int = doc.pageCount,
         wordCount: Int = doc.wordCount,
         previewSnippet: String = doc.previewSnippet,
-    ) = withContext(Dispatchers.IO) {
+    ): Boolean = withContext(Dispatchers.IO) {
         val file = File(doc.filePath)
         db.documentDao().update(
             doc.copy(
@@ -739,6 +446,7 @@ class DocumentRepository(
                 updatedAt = System.currentTimeMillis(),
             )
         )
+        syncBackToSourceUri(doc)
     }
 
     suspend fun addPdfAnnotation(annotation: PdfAnnotationEntity) = withContext(Dispatchers.IO) {
@@ -761,9 +469,6 @@ class DocumentRepository(
         db.bookmarkDao().deleteById(bookmarkId)
     }
 
-    /**
-     * Exports a document directly to a user-selected SAF URI (Save As / Export to Device).
-     */
     suspend fun exportDocumentToUri(doc: DocumentEntity, destUri: Uri): Boolean = withContext(Dispatchers.IO) {
         val srcFile = File(doc.filePath)
         if (!srcFile.exists()) return@withContext false
@@ -774,9 +479,6 @@ class DocumentRepository(
         }.getOrDefault(false)
     }
 
-    /**
-     * Builds a native Android Share Intent using FileProvider for sharing real files.
-     */
     fun createShareIntent(doc: DocumentEntity): Intent? {
         val file = File(doc.filePath)
         if (!file.exists()) return null
@@ -793,10 +495,6 @@ class DocumentRepository(
         }
     }
 
-    /**
-     * REAL FULL BACKUP (.luminabak ZIP archive):
-     * Exports metadata JSON (documents, annotations, bookmarks, settings) + every real file in documents/.
-     */
     suspend fun exportBackupToUri(destUri: Uri): Int = withContext(Dispatchers.IO) {
         val docs = db.documentDao().getAllDocumentsOnce()
         val annotations = db.annotationDao().getAllOnce()
@@ -806,7 +504,7 @@ class DocumentRepository(
         val rootJson = JSONObject().apply {
             put("app", "Lumina Docs")
             put("developer", "sky")
-            put("backupVersion", 1)
+            put("backupVersion", 2)
             put("exportedAt", System.currentTimeMillis())
             put("settings", JSONObject().apply {
                 put("themeMode", settings.themeMode)
@@ -882,9 +580,6 @@ class DocumentRepository(
         docs.size
     }
 
-    /**
-     * REAL FULL RESTORE from a .luminabak ZIP archive.
-     */
     suspend fun restoreBackupFromUri(srcUri: Uri): Int = withContext(Dispatchers.IO) {
         var manifestJson: JSONObject? = null
         val restoredFiles = mutableMapOf<String, ByteArray>()
