@@ -1,0 +1,403 @@
+package com.example
+
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AddBox
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Handyman
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.rounded.AddBox
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.Handyman
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.data.model.DocumentEntity
+import com.example.data.model.DocumentType
+import com.example.ui.editors.PdfEditorScreen
+import com.example.ui.editors.SlidesEditorScreen
+import com.example.ui.editors.SpreadsheetEditorScreen
+import com.example.ui.editors.TextEditorScreen
+import com.example.ui.editors.WordEditorScreen
+import com.example.ui.screens.CreateHubScreen
+import com.example.ui.screens.LibraryScreen
+import com.example.ui.screens.SettingsScreen
+import com.example.ui.screens.ToolsHubScreen
+import com.example.ui.theme.AccentPalette
+import com.example.ui.theme.FloatingGlassNavBar
+import com.example.ui.theme.LiquidGlassBackdrop
+import com.example.ui.theme.LocalLuminaAppearance
+import com.example.ui.theme.LuminaDocsTheme
+import com.example.ui.theme.LuminaNavDestination
+import com.example.viewmodel.ActiveEditorState
+import com.example.viewmodel.LuminaViewModel
+
+class MainActivity : ComponentActivity() {
+
+    private val viewModel: LuminaViewModel by viewModels()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        handleIncomingIntent(intent)
+
+        setContent {
+            val settings by viewModel.settings.collectAsStateWithLifecycle()
+            LuminaDocsTheme(
+                themeMode = settings.themeMode,
+                accentPalette = AccentPalette.fromKey(settings.accentKey),
+                liquidGlassEnabled = settings.liquidGlassEnabled,
+                powerSavingMode = settings.powerSavingMode,
+                oledBlackInPowerSaver = settings.oledBlackInPowerSaver,
+            ) {
+                val isDark = LocalLuminaAppearance.current.isDark
+                LaunchedEffect(isDark) {
+                    enableEdgeToEdge(
+                        statusBarStyle = if (isDark) {
+                            SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                        } else {
+                            SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+                        },
+                        navigationBarStyle = if (isDark) {
+                            SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                        } else {
+                            SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+                        },
+                    )
+                }
+
+                LuminaAppRoot(viewModel = viewModel)
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIncomingIntent(intent)
+    }
+
+    private fun handleIncomingIntent(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_VIEW) {
+            val uri: Uri? = intent.data
+            if (uri != null) {
+                viewModel.importFromUri(uri, openImmediately = true)
+            }
+        }
+    }
+}
+
+@Composable
+private fun LuminaAppRoot(viewModel: LuminaViewModel) {
+    val context = LocalContext.current
+    val allDocuments by viewModel.allDocuments.collectAsStateWithLifecycle()
+    val filteredDocuments by viewModel.filteredDocuments.collectAsStateWithLifecycle()
+    val filterState by viewModel.filterState.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val editorState by viewModel.editorState.collectAsStateWithLifecycle()
+    val cacheSizeBytes by viewModel.cacheSizeBytes.collectAsStateWithLifecycle()
+    val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    var currentTab by remember { mutableStateOf("library") }
+    var pendingExportDoc by remember { mutableStateOf<DocumentEntity?>(null) }
+
+    LaunchedEffect(Unit) {
+        viewModel.messages.collect { msg ->
+            snackbarHostState.showSnackbar(msg)
+        }
+    }
+
+    // Zero-permission SAF launchers
+    val importFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) viewModel.importFromUri(uri, openImmediately = true)
+    }
+
+    val exportDocLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("*/*")
+    ) { uri ->
+        val doc = pendingExportDoc
+        if (uri != null && doc != null) {
+            viewModel.exportDocumentToUri(doc, uri)
+        }
+        pendingExportDoc = null
+    }
+
+    val backupExportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri ->
+        if (uri != null) viewModel.exportBackup(uri)
+    }
+
+    val backupRestoreLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) viewModel.restoreBackup(uri)
+    }
+
+    val launchImport: () -> Unit = {
+        importFileLauncher.launch(
+            arrayOf(
+                "application/pdf",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                "text/csv",
+                "text/plain",
+                "text/markdown",
+                "application/json",
+                "text/html",
+                "*/*",
+            )
+        )
+    }
+
+    val shareDocument: (DocumentEntity) -> Unit = { doc ->
+        val shareIntent = viewModel.createShareIntent(doc)
+        if (shareIntent != null) {
+            context.startActivity(Intent.createChooser(shareIntent, "Share ${doc.title}"))
+        } else {
+            viewModel.emitMessage("File unavailable to share")
+        }
+    }
+
+    val destinations = remember {
+        listOf(
+            LuminaNavDestination("library", "Library", Icons.Outlined.Folder, Icons.Rounded.Folder, "nav_library"),
+            LuminaNavDestination("create", "Create", Icons.Outlined.AddBox, Icons.Rounded.AddBox, "nav_create"),
+            LuminaNavDestination("tools", "Lab", Icons.Outlined.Handyman, Icons.Rounded.Handyman, "nav_tools"),
+            LuminaNavDestination("settings", "Settings", Icons.Outlined.Settings, Icons.Rounded.Settings, "nav_settings"),
+        )
+    }
+
+    LiquidGlassBackdrop {
+        Scaffold(
+            containerColor = Color.Transparent,
+            snackbarHost = {
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier
+                        .navigationBarsPadding()
+                        .padding(bottom = if (editorState is ActiveEditorState.None) 86.dp else 12.dp),
+                )
+            },
+        ) { _ ->
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (val active = editorState) {
+                    is ActiveEditorState.None -> {
+                        AnimatedContent(
+                            targetState = currentTab,
+                            transitionSpec = { fadeIn() togetherWith fadeOut() },
+                            label = "mainTabTransition",
+                        ) { tab ->
+                            when (tab) {
+                                "library" -> LibraryScreen(
+                                    allDocuments = allDocuments,
+                                    filteredDocuments = filteredDocuments,
+                                    filterState = filterState,
+                                    powerSavingMode = settings.powerSavingMode,
+                                    onSearchChange = viewModel::setSearchQuery,
+                                    onCategorySelect = viewModel::setCategory,
+                                    onSortChange = viewModel::setSortOrder,
+                                    onToggleFavoritesFilter = viewModel::toggleFavoritesFilter,
+                                    onOpenDocument = viewModel::openDocument,
+                                    onImportDeviceFile = launchImport,
+                                    onJumpToCreate = { currentTab = "create" },
+                                    onRenameDocument = viewModel::renameDocument,
+                                    onDuplicateDocument = viewModel::duplicateDocument,
+                                    onTogglePin = viewModel::togglePinned,
+                                    onToggleFavorite = viewModel::toggleFavorite,
+                                    onConvertToPdf = { doc -> viewModel.convertDocument(doc, DocumentType.PDF) },
+                                    onExportDocument = { doc ->
+                                        pendingExportDoc = doc
+                                        exportDocLauncher.launch(doc.fileName)
+                                    },
+                                    onShareDocument = shareDocument,
+                                    onDeleteDocument = viewModel::deleteDocument,
+                                )
+                                "create" -> CreateHubScreen(
+                                    templates = viewModel.templates,
+                                    onCreateBlank = viewModel::createBlankAndOpen,
+                                    onCreateFromTemplate = viewModel::createFromTemplateAndOpen,
+                                    onImportFromDevice = launchImport,
+                                )
+                                "tools" -> ToolsHubScreen(
+                                    allDocuments = allDocuments,
+                                    onConvertDocument = { doc, target -> viewModel.convertDocument(doc, target) },
+                                    onMergePdfs = viewModel::mergePdfDocuments,
+                                )
+                                else -> SettingsScreen(
+                                    settings = settings,
+                                    cacheSizeBytes = cacheSizeBytes,
+                                    documentCount = allDocuments.size,
+                                    onThemeModeChange = viewModel::setThemeMode,
+                                    onAccentChange = viewModel::setAccentKey,
+                                    onLiquidGlassToggle = viewModel::setLiquidGlass,
+                                    onPowerSavingToggle = viewModel::setPowerSavingMode,
+                                    onOledBlackToggle = viewModel::setOledBlackInPowerSaver,
+                                    onFontSizeChange = viewModel::setEditorFontSize,
+                                    onAutoSaveToggle = viewModel::setAutoSave,
+                                    onPdfNightDefaultToggle = viewModel::setPdfNightInvertDefault,
+                                    onGridlinesToggle = viewModel::setShowGridlines,
+                                    onLineNumbersToggle = viewModel::setShowLineNumbers,
+                                    onExportBackup = {
+                                        backupExportLauncher.launch("LuminaDocs_Backup_${System.currentTimeMillis()}.luminabak")
+                                    },
+                                    onRestoreBackup = {
+                                        backupRestoreLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+                                    },
+                                    onClearCache = viewModel::clearCache,
+                                )
+                            }
+                        }
+
+                        FloatingGlassNavBar(
+                            destinations = destinations,
+                            selectedRoute = currentTab,
+                            onSelect = { route ->
+                                currentTab = route
+                                if (route == "settings") viewModel.refreshCacheSize()
+                            },
+                            modifier = Modifier.align(Alignment.BottomCenter),
+                        )
+                    }
+
+                    is ActiveEditorState.Loading -> {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    }
+
+                    is ActiveEditorState.PdfEditor -> PdfEditorScreen(
+                        state = active,
+                        powerSavingMode = settings.powerSavingMode,
+                        onClose = viewModel::closeEditor,
+                        onPageChange = viewModel::setPdfPage,
+                        onToggleNightInvert = viewModel::togglePdfNightInvert,
+                        onToggleBookmark = viewModel::togglePdfPageBookmark,
+                        onAddAnnotation = viewModel::addPdfAnnotation,
+                        onDeleteAnnotation = viewModel::deletePdfAnnotation,
+                        onAppendNewPage = viewModel::appendNewPdfPage,
+                        onBakeAndSave = viewModel::bakeAndSavePdf,
+                        onShare = { shareDocument(active.document) },
+                    )
+
+                    is ActiveEditorState.SpreadsheetEditor -> SpreadsheetEditorScreen(
+                        state = active,
+                        showGridlines = settings.showGridlines,
+                        fontSizeSp = settings.editorFontSizeSp,
+                        onClose = viewModel::closeEditor,
+                        onSelectCell = viewModel::selectSpreadsheetCell,
+                        onUpdateCell = viewModel::updateSpreadsheetCell,
+                        onSelectSheet = viewModel::selectSpreadsheetSheet,
+                        onAddSheet = viewModel::addSpreadsheetSheet,
+                        onAddRow = viewModel::addSpreadsheetRow,
+                        onAddColumn = viewModel::addSpreadsheetColumn,
+                        onDeleteSelectedRow = viewModel::deleteSelectedSpreadsheetRow,
+                        onSortColumn = { viewModel.sortSpreadsheetBySelectedColumn(ascending = true) },
+                        onSave = viewModel::saveSpreadsheet,
+                        onExportPdf = {
+                            viewModel.saveSpreadsheet()
+                            viewModel.convertDocument(active.document, DocumentType.PDF)
+                        },
+                        onShare = { shareDocument(active.document) },
+                    )
+
+                    is ActiveEditorState.WordEditor -> WordEditorScreen(
+                        state = active,
+                        fontSizeSp = settings.editorFontSizeSp,
+                        onClose = viewModel::closeEditor,
+                        onSelectBlock = viewModel::selectWordBlock,
+                        onUpdateBlock = viewModel::updateWordBlock,
+                        onAddBlock = viewModel::addWordBlock,
+                        onDeleteBlock = viewModel::deleteWordBlock,
+                        onFindReplace = viewModel::replaceTextInWord,
+                        onSave = viewModel::saveWordDocument,
+                        onExportPdf = {
+                            viewModel.saveWordDocument()
+                            viewModel.convertDocument(active.document, DocumentType.PDF)
+                        },
+                        onShare = { shareDocument(active.document) },
+                    )
+
+                    is ActiveEditorState.SlidesEditor -> SlidesEditorScreen(
+                        state = active,
+                        onClose = viewModel::closeEditor,
+                        onSelectSlide = viewModel::selectSlide,
+                        onUpdateSlide = viewModel::updateActiveSlide,
+                        onAddSlide = viewModel::addSlide,
+                        onDeleteSlide = viewModel::deleteActiveSlide,
+                        onSave = viewModel::saveSlides,
+                        onExportPdf = {
+                            viewModel.saveSlides()
+                            viewModel.convertDocument(active.document, DocumentType.PDF)
+                        },
+                        onShare = { shareDocument(active.document) },
+                    )
+
+                    is ActiveEditorState.TextEditor -> TextEditorScreen(
+                        state = active,
+                        fontSizeSp = settings.editorFontSizeSp,
+                        showLineNumbers = settings.showLineNumbers,
+                        onClose = viewModel::closeEditor,
+                        onContentChange = viewModel::updateTextContent,
+                        onTogglePreview = viewModel::toggleTextPreviewMode,
+                        onSave = viewModel::saveTextDocument,
+                        onExportPdf = {
+                            viewModel.saveTextDocument()
+                            viewModel.convertDocument(active.document, DocumentType.PDF)
+                        },
+                        onConvertDocx = {
+                            viewModel.saveTextDocument()
+                            viewModel.convertDocument(active.document, DocumentType.DOCX)
+                        },
+                        onShare = { shareDocument(active.document) },
+                    )
+                }
+
+                if (isBusy) {
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 2.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+        }
+    }
+}

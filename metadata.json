@@ -1,0 +1,6 @@
+{
+  "name": "Lumina Docs",
+  "description": "Lightweight, modern iOS-style liquid glass document reader and editor for PDF, Excel (XLSX/CSV), Word (DOCX), PowerPoint (PPTX), Markdown, and Code files by sky.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

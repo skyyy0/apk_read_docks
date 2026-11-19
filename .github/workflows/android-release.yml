@@ -1,0 +1,109 @@
+name: Build & Release Lumina Docs APK
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Publish Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK Licenses
+        run: yes | sdkmanager --licenses > /dev/null 2>&1 || true
+
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Restore cached upload keystore (preserves consistent signing key for in-place updates)
+        uses: actions/cache@v4
+        with:
+          path: my-upload-key.jks
+          key: lumina-docs-upload-keystore-v1
+
+      - name: Prepare signing keystores
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ ! -f debug.keystore ]; then
+            keytool -genkeypair -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > my-upload-key.jks
+            echo "STORE_PASSWORD=$STORE_PASSWORD" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=$KEY_PASSWORD" >> $GITHUB_ENV
+          else
+            if [ ! -f my-upload-key.jks ]; then
+              keytool -genkeypair -v -keystore my-upload-key.jks -storepass lumina_upload_pass -alias upload -keypass lumina_upload_pass -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Lumina Docs,OU=sky,O=Lumina,C=ID"
+            fi
+            echo "STORE_PASSWORD=lumina_upload_pass" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=lumina_upload_pass" >> $GITHUB_ENV
+          fi
+          echo "KEYSTORE_PATH=${{ github.workspace }}/my-upload-key.jks" >> $GITHUB_ENV
+
+      - name: Run Unit Tests & Compile Check
+        run: gradle :app:testDebugUnitTest --stacktrace
+
+      - name: Build Release APK
+        run: gradle :app:assembleRelease --stacktrace
+
+      - name: Prepare Release Metadata
+        id: meta
+        run: |
+          VERSION_NAME=$(grep 'versionName' app/build.gradle.kts | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')
+          TAG="v${VERSION_NAME}-b${{ github.run_number }}"
+          APK_SRC="app/build/outputs/apk/release/app-release.apk"
+          APK_OUT="LuminaDocs-v${VERSION_NAME}-build${{ github.run_number }}.apk"
+          cp "$APK_SRC" "$APK_OUT"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION_NAME" >> $GITHUB_OUTPUT
+          echo "apk_file=$APK_OUT" >> $GITHUB_OUTPUT
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LuminaDocs-APK
+          path: ${{ steps.meta.outputs.apk_file }}
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: "Lumina Docs v${{ steps.meta.outputs.version }} (Build ${{ github.run_number }})"
+          body: |
+            ### Lumina Docs — Universal Liquid-Glass Document Studio
+            **Developer:** sky | **Package ID:** `com.luminadocs.id`
+
+            #### Highlights
+            - Native **PDF** Reader, Annotator (Text, Highlight, Sticky Notes), Page Appender & Multi-PDF Merger
+            - Native **Excel (`.xlsx` / `.csv`)** Editor with live formula engine (`=SUM`, `=AVERAGE`, `=MIN`, `=MAX`, `=COUNT`, `=IF`) & PDF export
+            - Native **Word (`.docx`)** Rich Block Editor with Find & Replace & PDF/Markdown/HTML conversion
+            - Native **PowerPoint (`.pptx`)** Deck Viewer/Editor & 16:9 PDF export
+            - **Markdown / JSON / Code** Editor with live preview & JSON validator
+            - **Settings**: iOS Liquid Glass surfaces, **Power Saving Mode (Mode Hemat Daya)**, Full `.luminabak` Backup & Restore, Cache cleaner
+          files: ${{ steps.meta.outputs.apk_file }}
+          draft: false
+          prerelease: false
