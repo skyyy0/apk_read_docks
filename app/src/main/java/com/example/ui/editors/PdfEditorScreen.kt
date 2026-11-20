@@ -13,6 +13,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,6 +34,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -58,6 +60,8 @@ import androidx.compose.material.icons.rounded.BorderColor
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Draw
+import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Save
@@ -89,7 +93,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -104,6 +112,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.engine.PdfEngine
+import com.example.engine.PdfPageOperation
 import com.example.ui.theme.FormatSlidesColor
 import com.example.ui.theme.GlassToolbarSurface
 import com.example.ui.theme.JetBrainsMonoFamily
@@ -122,6 +131,7 @@ import kotlin.math.roundToInt
 fun PdfEditorScreen(
     state: ActiveEditorState.PdfEditor,
     powerSavingMode: Boolean,
+    savedSignatureStrokes: String,
     onClose: () -> Unit,
     onPageChange: (Int) -> Unit,
     onToggleNightInvert: () -> Unit,
@@ -130,6 +140,8 @@ fun PdfEditorScreen(
     onDeleteAnnotation: (Long) -> Unit,
     onAppendNewPage: (title: String, body: String) -> Unit,
     onDeleteCurrentPage: () -> Unit,
+    onSaveSignatureTemplate: (String) -> Unit,
+    onReorganizePdf: (List<PdfPageOperation>, Boolean, String) -> Unit,
     onBakeAndSave: () -> Unit,
     onShare: () -> Unit,
 ) {
@@ -154,6 +166,11 @@ fun PdfEditorScreen(
     var panOffsetY by remember { mutableFloatStateOf(0f) }
     var activeTool by remember { mutableStateOf<String?>(null) }
     var pendingPlacement by remember { mutableStateOf<Pair<Float, Float>?>(null) }
+    var pendingSignatureSerialized by remember { mutableStateOf<String?>(null) }
+    var pendingSignatureColorHex by remember { mutableStateOf(0xFF0F172A) }
+    var pendingStampText by remember { mutableStateOf<String?>(null) }
+    var showSignatureDialog by remember { mutableStateOf(false) }
+    var showOrganizerDialog by remember { mutableStateOf(false) }
     var annotationText by remember { mutableStateOf("") }
     var showAddPageDialog by remember { mutableStateOf(false) }
     var showJumpPageDialog by remember { mutableStateOf(false) }
@@ -452,8 +469,30 @@ fun PdfEditorScreen(
                                     },
                                     onTap = { offset ->
                                         if (activeTool != null && size.width > 0 && size.height > 0) {
-                                            pendingPlacement = (offset.x / size.width) to (offset.y / size.height)
-                                            annotationText = ""
+                                            val nx = offset.x / size.width
+                                            val ny = offset.y / size.height
+                                            when (activeTool) {
+                                                "SIGNATURE" -> {
+                                                    pendingSignatureSerialized?.let { sig ->
+                                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                        onAddAnnotation("SIGNATURE", sig, nx, ny, pendingSignatureColorHex)
+                                                    }
+                                                    pendingSignatureSerialized = null
+                                                    activeTool = null
+                                                }
+                                                "STAMP" -> {
+                                                    pendingStampText?.let { stamp ->
+                                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                        onAddAnnotation("STAMP", stamp, nx, ny, pendingSignatureColorHex)
+                                                    }
+                                                    pendingStampText = null
+                                                    activeTool = null
+                                                }
+                                                else -> {
+                                                    pendingPlacement = nx to ny
+                                                    annotationText = ""
+                                                }
+                                            }
                                         }
                                     },
                                 )
@@ -471,44 +510,93 @@ fun PdfEditorScreen(
                         val heightPx = constraints.maxHeight.toFloat()
 
                         pageAnnotations.forEach { ann ->
-                            val bgColor = when (ann.kind) {
-                                "HIGHLIGHT" -> Color(0x99FDE047)
-                                "NOTE" -> Color(0xFFFEF08A)
-                                else -> Color.White.copy(alpha = 0.90f)
-                            }
-                            val textColor = when (ann.kind) {
-                                "NOTE" -> Color(0xFF422006)
-                                else -> Color(ann.colorHex)
-                            }
-                            Row(
-                                modifier = Modifier
-                                    .offset {
-                                        IntOffset(
-                                            x = (ann.normX * widthPx).roundToInt().coerceIn(8, (widthPx - 120f).roundToInt().coerceAtLeast(8)),
-                                            y = (ann.normY * heightPx).roundToInt().coerceIn(8, (heightPx - 60f).roundToInt().coerceAtLeast(8)),
-                                        )
+                            if (ann.kind == "SIGNATURE") {
+                                val strokes = remember(ann.content) { PdfEngine.parseSignatureStrokes(ann.content) }
+                                val inkColor = Color(ann.colorHex)
+                                Box(
+                                    modifier = Modifier
+                                        .offset {
+                                            IntOffset(
+                                                x = (ann.normX * widthPx - 95f).roundToInt().coerceIn(8, (widthPx - 190f).roundToInt().coerceAtLeast(8)),
+                                                y = (ann.normY * heightPx - 45f).roundToInt().coerceIn(8, (heightPx - 90f).roundToInt().coerceAtLeast(8)),
+                                            )
+                                        }
+                                        .size(width = 112.dp, height = 52.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color.White.copy(alpha = 0.72f))
+                                        .border(0.8.dp, inkColor.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                                        .clickable { onDeleteAnnotation(ann.id) }
+                                        .padding(6.dp),
+                                ) {
+                                    Canvas(modifier = Modifier.fillMaxSize()) {
+                                        val strokeStyle = Stroke(width = 3.5f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                                        strokes.forEach { pts ->
+                                            val path = Path()
+                                            pts.forEachIndexed { idx, (sx, sy) ->
+                                                val px = sx * size.width
+                                                val py = sy * size.height
+                                                if (idx == 0) path.moveTo(px, py) else path.lineTo(px, py)
+                                            }
+                                            drawPath(path = path, color = inkColor, style = strokeStyle)
+                                        }
                                     }
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(bgColor)
-                                    .border(1.dp, textColor.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
-                                    .clickable { onDeleteAnnotation(ann.id) }
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    text = ann.content,
-                                    color = textColor,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 2,
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Icon(
-                                    imageVector = Icons.Rounded.Close,
-                                    contentDescription = "Remove annotation",
-                                    tint = textColor.copy(alpha = 0.7f),
-                                    modifier = Modifier.size(12.dp),
-                                )
+                                    Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = "Remove signature",
+                                        tint = inkColor.copy(alpha = 0.7f),
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .size(12.dp),
+                                    )
+                                }
+                            } else {
+                                val bgColor = when (ann.kind) {
+                                    "HIGHLIGHT" -> Color(0x99FDE047)
+                                    "NOTE" -> Color(0xFFFEF08A)
+                                    "STAMP" -> Color(ann.colorHex).copy(alpha = 0.14f)
+                                    else -> Color.White.copy(alpha = 0.90f)
+                                }
+                                val textColor = when (ann.kind) {
+                                    "NOTE" -> Color(0xFF422006)
+                                    else -> Color(ann.colorHex)
+                                }
+                                Row(
+                                    modifier = Modifier
+                                        .offset {
+                                            IntOffset(
+                                                x = (ann.normX * widthPx).roundToInt().coerceIn(8, (widthPx - 120f).roundToInt().coerceAtLeast(8)),
+                                                y = (ann.normY * heightPx).roundToInt().coerceIn(8, (heightPx - 60f).roundToInt().coerceAtLeast(8)),
+                                            )
+                                        }
+                                        .graphicsLayer {
+                                            if (ann.kind == "STAMP") rotationZ = -6f
+                                        }
+                                        .clip(RoundedCornerShape(if (ann.kind == "STAMP") 8.dp else 12.dp))
+                                        .background(bgColor)
+                                        .border(
+                                            width = if (ann.kind == "STAMP") 1.4.dp else 1.dp,
+                                            color = textColor.copy(alpha = if (ann.kind == "STAMP") 0.85f else 0.4f),
+                                            shape = RoundedCornerShape(if (ann.kind == "STAMP") 8.dp else 12.dp),
+                                        )
+                                        .clickable { onDeleteAnnotation(ann.id) }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        text = ann.content,
+                                        color = textColor,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (ann.kind == "STAMP") FontWeight.Bold else FontWeight.SemiBold,
+                                        maxLines = 2,
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = "Remove annotation",
+                                        tint = textColor.copy(alpha = 0.7f),
+                                        modifier = Modifier.size(12.dp),
+                                    )
+                                }
                             }
                         }
                     }
@@ -609,6 +697,24 @@ fun PdfEditorScreen(
                             selected = activeTool == "NOTE",
                             onClick = { activeTool = if (activeTool == "NOTE") null else "NOTE" },
                             testTag = "pdf_tool_note",
+                        )
+                    }
+                    item {
+                        PdfToolChip(
+                            icon = Icons.Rounded.Draw,
+                            label = "Sign / Stamp",
+                            selected = activeTool == "SIGNATURE" || activeTool == "STAMP",
+                            onClick = { showSignatureDialog = true },
+                            testTag = "pdf_tool_sign",
+                        )
+                    }
+                    item {
+                        PdfToolChip(
+                            icon = Icons.Rounded.GridView,
+                            label = "Organize",
+                            selected = false,
+                            onClick = { showOrganizerDialog = true },
+                            testTag = "pdf_tool_organize",
                         )
                     }
                     item {
@@ -737,6 +843,38 @@ fun PdfEditorScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showAddPageDialog = false }) { Text("Cancel") }
+            },
+        )
+    }
+
+    if (showSignatureDialog) {
+        PdfSignaturePadDialog(
+            savedSignatureStrokes = savedSignatureStrokes,
+            onDismiss = { showSignatureDialog = false },
+            onConfirmSignature = { serialized, colorHex, saveTemplate ->
+                if (saveTemplate) onSaveSignatureTemplate(serialized)
+                pendingSignatureSerialized = serialized
+                pendingSignatureColorHex = colorHex
+                activeTool = "SIGNATURE"
+                showSignatureDialog = false
+            },
+            onConfirmStamp = { stampText, colorHex ->
+                pendingStampText = stampText
+                pendingSignatureColorHex = colorHex
+                activeTool = "STAMP"
+                showSignatureDialog = false
+            },
+        )
+    }
+
+    if (showOrganizerDialog) {
+        PdfPageOrganizerDialog(
+            pdfFile = pdfFile,
+            pageCount = state.pageCount,
+            onDismiss = { showOrganizerDialog = false },
+            onApplyChanges = { ops, replaceOriginal, splitTitle ->
+                showOrganizerDialog = false
+                onReorganizePdf(ops, replaceOriginal, splitTitle)
             },
         )
     }

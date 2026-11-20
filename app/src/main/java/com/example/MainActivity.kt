@@ -8,6 +8,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedContent
@@ -75,6 +76,7 @@ import androidx.core.content.IntentCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.DocumentEntity
 import com.example.data.model.DocumentType
+import com.example.ui.editors.CodeIdeEditorScreen
 import com.example.ui.editors.PdfEditorScreen
 import com.example.ui.editors.SlidesEditorScreen
 import com.example.ui.editors.SpreadsheetEditorScreen
@@ -82,6 +84,7 @@ import com.example.ui.editors.TextEditorScreen
 import com.example.ui.editors.WordEditorScreen
 import com.example.ui.screens.CreateHubScreen
 import com.example.ui.screens.LibraryScreen
+import com.example.ui.screens.ScanToPdfDialog
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.ToolsHubScreen
 import com.example.ui.theme.AccentPalette
@@ -183,6 +186,7 @@ private fun LuminaAppRoot(viewModel: LuminaViewModel) {
     val snackbarHostState = remember { SnackbarHostState() }
     var currentTab by remember { mutableStateOf("library") }
     var pendingExportDoc by remember { mutableStateOf<DocumentEntity?>(null) }
+    var scanPhotoUris by remember { mutableStateOf<List<Uri>?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.messages.collect { msg ->
@@ -200,6 +204,14 @@ private fun LuminaAppRoot(viewModel: LuminaViewModel) {
         contract = ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
         if (uris.isNotEmpty()) viewModel.importMultipleUris(uris)
+    }
+
+    val photoScanLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia(20)
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            scanPhotoUris = uris
+        }
     }
 
     val exportDocLauncher = rememberLauncherForActivityResult(
@@ -235,12 +247,19 @@ private fun LuminaAppRoot(viewModel: LuminaViewModel) {
             "text/markdown",
             "application/json",
             "text/html",
+            "text/css",
+            "application/javascript",
+            "text/javascript",
+            "text/xml",
             "*/*",
         )
     }
 
     val launchImport: () -> Unit = { importFileLauncher.launch(supportedMimeTypes) }
     val launchBatchImport: () -> Unit = { importMultipleFilesLauncher.launch(supportedMimeTypes) }
+    val launchPhotoScanner: () -> Unit = {
+        photoScanLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+    }
 
     val shareDocument: (DocumentEntity) -> Unit = { doc ->
         val shareIntent = viewModel.createShareIntent(doc)
@@ -375,11 +394,14 @@ private fun LuminaAppRoot(viewModel: LuminaViewModel) {
                                                     onCreateBlank = viewModel::createBlankAndOpen,
                                                     onImportSingleFile = launchImport,
                                                     onImportMultipleFiles = launchBatchImport,
+                                                    onOpenScanToPdf = launchPhotoScanner,
                                                 )
                                                 "tools" -> ToolsHubScreen(
                                                     allDocuments = allDocuments,
                                                     onConvertDocument = { doc, target -> viewModel.convertDocument(doc, target) },
                                                     onMergePdfs = viewModel::mergePdfDocuments,
+                                                    onCompressPdf = viewModel::compressPdfDocument,
+                                                    onOpenScanToPdf = launchPhotoScanner,
                                                 )
                                                 else -> SettingsScreen(
                                                     settings = settings,
@@ -419,6 +441,7 @@ private fun LuminaAppRoot(viewModel: LuminaViewModel) {
                         is ActiveEditorState.PdfEditor -> PdfEditorScreen(
                             state = active,
                             powerSavingMode = settings.powerSavingMode,
+                            savedSignatureStrokes = settings.savedSignatureStrokes,
                             onClose = viewModel::closeEditor,
                             onPageChange = viewModel::setPdfPage,
                             onToggleNightInvert = viewModel::togglePdfNightInvert,
@@ -427,6 +450,8 @@ private fun LuminaAppRoot(viewModel: LuminaViewModel) {
                             onDeleteAnnotation = viewModel::deletePdfAnnotation,
                             onAppendNewPage = viewModel::appendNewPdfPage,
                             onDeleteCurrentPage = viewModel::deleteCurrentPdfPage,
+                            onSaveSignatureTemplate = viewModel::saveSignatureTemplate,
+                            onReorganizePdf = viewModel::reorganizeCurrentPdf,
                             onBakeAndSave = viewModel::bakeAndSavePdf,
                             onShare = { shareDocument(active.document) },
                         )
@@ -486,24 +511,45 @@ private fun LuminaAppRoot(viewModel: LuminaViewModel) {
                             onShare = { shareDocument(active.document) },
                         )
 
-                        is ActiveEditorState.TextEditor -> TextEditorScreen(
-                            state = active,
-                            fontSizeSp = settings.editorFontSizeSp,
-                            showLineNumbers = settings.showLineNumbers,
-                            onClose = viewModel::closeEditor,
-                            onContentChange = viewModel::updateTextContent,
-                            onTogglePreview = viewModel::toggleTextPreviewMode,
-                            onSave = viewModel::saveTextDocument,
-                            onExportPdf = {
-                                viewModel.saveTextDocument()
-                                viewModel.convertDocument(active.document, DocumentType.PDF)
-                            },
-                            onConvertDocx = {
-                                viewModel.saveTextDocument()
-                                viewModel.convertDocument(active.document, DocumentType.DOCX)
-                            },
-                            onShare = { shareDocument(active.document) },
-                        )
+                        is ActiveEditorState.TextEditor -> {
+                            val isCode = active.document.docType.isCodeDocument(active.document.fileName)
+                            if (isCode) {
+                                CodeIdeEditorScreen(
+                                    state = active,
+                                    fontSizeSp = settings.editorFontSizeSp,
+                                    showLineNumbers = settings.showLineNumbers,
+                                    onClose = viewModel::closeEditor,
+                                    onContentChange = viewModel::updateTextContent,
+                                    onReplaceText = viewModel::replaceInTextDocument,
+                                    onSave = viewModel::saveTextDocument,
+                                    onExportPdf = {
+                                        viewModel.saveTextDocument()
+                                        viewModel.convertDocument(active.document, DocumentType.PDF)
+                                    },
+                                    onShare = { shareDocument(active.document) },
+                                )
+                            } else {
+                                TextEditorScreen(
+                                    state = active,
+                                    fontSizeSp = settings.editorFontSizeSp,
+                                    showLineNumbers = settings.showLineNumbers,
+                                    onClose = viewModel::closeEditor,
+                                    onContentChange = viewModel::updateTextContent,
+                                    onTogglePreview = viewModel::toggleTextPreviewMode,
+                                    onReplaceText = viewModel::replaceInTextDocument,
+                                    onSave = viewModel::saveTextDocument,
+                                    onExportPdf = {
+                                        viewModel.saveTextDocument()
+                                        viewModel.convertDocument(active.document, DocumentType.PDF)
+                                    },
+                                    onConvertDocx = {
+                                        viewModel.saveTextDocument()
+                                        viewModel.convertDocument(active.document, DocumentType.DOCX)
+                                    },
+                                    onShare = { shareDocument(active.document) },
+                                )
+                            }
+                        }
                         }
                     }
 
@@ -610,6 +656,18 @@ private fun LuminaAppRoot(viewModel: LuminaViewModel) {
                         }
                     }
                 }
+            }
+
+            scanPhotoUris?.let { uris ->
+                ScanToPdfDialog(
+                    initialUris = uris,
+                    onPickMorePhotos = launchPhotoScanner,
+                    onDismiss = { scanPhotoUris = null },
+                    onBuildPdf = { title, pages, filterMode ->
+                        scanPhotoUris = null
+                        viewModel.createPdfFromImages(title, pages, filterMode)
+                    },
+                )
             }
         }
     }

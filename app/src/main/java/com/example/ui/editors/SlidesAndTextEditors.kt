@@ -36,9 +36,12 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.FindReplace
 import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.PictureAsPdf
 import androidx.compose.material.icons.rounded.Save
@@ -53,9 +56,13 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -310,6 +317,7 @@ fun TextEditorScreen(
     onClose: () -> Unit,
     onContentChange: (String) -> Unit,
     onTogglePreview: () -> Unit,
+    onReplaceText: (find: String, replace: String, replaceAll: Boolean) -> Unit = { _, _, _ -> },
     onSave: () -> Unit,
     onExportPdf: () -> Unit,
     onConvertDocx: () -> Unit,
@@ -330,6 +338,9 @@ fun TextEditorScreen(
     val jsonStatus = remember(state.content, isJson) {
         if (isJson) TextDocumentEngine.validateAndFormatJson(state.content) else null
     }
+    var showFindBar by remember { mutableStateOf(false) }
+    var findQuery by remember { mutableStateOf("") }
+    var replaceQuery by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -375,6 +386,13 @@ fun TextEditorScreen(
                         )
                     }
                 }
+                IconButton(onClick = { showFindBar = !showFindBar }) {
+                    Icon(
+                        Icons.Rounded.FindReplace,
+                        contentDescription = "Find and Replace",
+                        tint = if (showFindBar) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    )
+                }
                 if (isMarkdown || state.document.docType == DocumentType.TEXT) {
                     IconButton(onClick = onConvertDocx) {
                         Icon(Icons.Rounded.Description, contentDescription = "Convert to Word DOCX")
@@ -388,6 +406,58 @@ fun TextEditorScreen(
                 }
                 IconButton(onClick = onSave, modifier = Modifier.testTag("text_save_button")) {
                     Icon(Icons.Rounded.Save, contentDescription = "Save", tint = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+
+        AnimatedVisibility(visible = showFindBar && !state.previewMode) {
+            EditorialSectionSurface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 920.dp)
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                shape = RoundedCornerShape(22.dp),
+                tonalLevel = editorSurfaceColor,
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        OutlinedTextField(
+                            value = findQuery,
+                            onValueChange = { findQuery = it },
+                            singleLine = true,
+                            label = { Text("Find") },
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.weight(1f),
+                        )
+                        IconButton(onClick = { showFindBar = false }) {
+                            Icon(Icons.Rounded.Close, contentDescription = "Close Find")
+                        }
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        OutlinedTextField(
+                            value = replaceQuery,
+                            onValueChange = { replaceQuery = it },
+                            singleLine = true,
+                            label = { Text("Replace with") },
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = { onReplaceText(findQuery, replaceQuery, false) }) {
+                            Text("Once")
+                        }
+                        TextButton(onClick = { onReplaceText(findQuery, replaceQuery, true) }) {
+                            Text("All")
+                        }
+                    }
                 }
             }
         }

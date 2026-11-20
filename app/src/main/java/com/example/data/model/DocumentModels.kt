@@ -36,10 +36,30 @@ enum class DocumentType(
     ),
     MARKDOWN("md", "MD", "Markdown Note", "text/markdown", DocumentCategory.NOTES),
     JSON("json", "JSON", "JSON Data", "application/json", DocumentCategory.NOTES),
-    HTML("html", "HTML", "HTML Page", "text/html", DocumentCategory.NOTES),
+    HTML("html", "HTML", "HTML5 Page", "text/html", DocumentCategory.NOTES),
+    CSS("css", "CSS", "CSS3 Stylesheet", "text/css", DocumentCategory.NOTES),
+    JS("js", "JS", "JavaScript", "application/javascript", DocumentCategory.NOTES),
+    CODE("kt", "CODE", "Source Code", "text/plain", DocumentCategory.NOTES),
     TEXT("txt", "TXT", "Plain Text", "text/plain", DocumentCategory.NOTES);
 
+    val isCodeFormat: Boolean
+        get() = this == HTML || this == CSS || this == JS || this == JSON || this == CODE
+
+    fun isCodeDocument(fileName: String): Boolean {
+        if (isCodeFormat) return true
+        val ext = fileName.substringAfterLast('.', "").lowercase()
+        return ext in CODE_EXTENSIONS
+    }
+
     companion object {
+        val CODE_EXTENSIONS = setOf(
+            "html", "htm", "css", "scss", "sass", "less",
+            "js", "jsx", "mjs", "cjs", "ts", "tsx",
+            "json", "xml", "svg", "yaml", "yml",
+            "kt", "kts", "java", "py", "sql", "sh", "bash",
+            "php", "c", "cpp", "h", "hpp", "rs", "go", "dart", "rb", "ini", "toml",
+        )
+
         fun fromFileName(fileName: String, mimeType: String? = null): DocumentType {
             val ext = fileName.substringAfterLast('.', "").lowercase()
             return when (ext) {
@@ -50,8 +70,11 @@ enum class DocumentType(
                 "pptx", "ppt" -> PPTX
                 "md", "markdown" -> MARKDOWN
                 "json" -> JSON
-                "html", "htm", "xml" -> HTML
-                "txt", "log", "ini", "yaml", "yml", "kt", "java", "py", "js", "ts" -> TEXT
+                "html", "htm", "xml", "svg" -> HTML
+                "css", "scss", "sass", "less" -> CSS
+                "js", "jsx", "mjs", "cjs", "ts", "tsx" -> JS
+                "kt", "kts", "java", "py", "sql", "sh", "bash", "php", "c", "cpp", "h", "rs", "go", "dart", "rb", "yaml", "yml", "toml", "ini" -> CODE
+                "txt", "log" -> TEXT
                 else -> when {
                     mimeType?.contains("pdf", ignoreCase = true) == true -> PDF
                     mimeType?.contains("spreadsheet", ignoreCase = true) == true ||
@@ -61,7 +84,10 @@ enum class DocumentType(
                         mimeType?.contains("msword", ignoreCase = true) == true -> DOCX
                     mimeType?.contains("presentation", ignoreCase = true) == true -> PPTX
                     mimeType?.contains("json", ignoreCase = true) == true -> JSON
-                    mimeType?.contains("html", ignoreCase = true) == true -> HTML
+                    mimeType?.contains("css", ignoreCase = true) == true -> CSS
+                    mimeType?.contains("javascript", ignoreCase = true) == true -> JS
+                    mimeType?.contains("html", ignoreCase = true) == true ||
+                        mimeType?.contains("xml", ignoreCase = true) == true -> HTML
                     mimeType?.contains("markdown", ignoreCase = true) == true -> MARKDOWN
                     else -> TEXT
                 }

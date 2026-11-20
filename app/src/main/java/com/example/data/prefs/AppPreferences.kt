@@ -25,6 +25,7 @@ data class UserSettings(
     val showGridlines: Boolean = true,
     val showLineNumbers: Boolean = true,
     val lastBackupTimestamp: Long = 0L,
+    val savedSignatureStrokes: String = "",
 )
 
 class AppPreferences(private val context: Context) {
@@ -41,6 +42,7 @@ class AppPreferences(private val context: Context) {
         val SHOW_GRIDLINES = booleanPreferencesKey("show_gridlines")
         val SHOW_LINE_NUMBERS = booleanPreferencesKey("show_line_numbers")
         val LAST_BACKUP = longPreferencesKey("last_backup_ts")
+        val SAVED_SIGNATURE = stringPreferencesKey("saved_signature_strokes")
     }
 
     val settingsFlow: Flow<UserSettings> = context.luminaDataStore.data.map { prefs ->
@@ -56,6 +58,7 @@ class AppPreferences(private val context: Context) {
             showGridlines = prefs[Keys.SHOW_GRIDLINES] ?: true,
             showLineNumbers = prefs[Keys.SHOW_LINE_NUMBERS] ?: true,
             lastBackupTimestamp = prefs[Keys.LAST_BACKUP] ?: 0L,
+            savedSignatureStrokes = prefs[Keys.SAVED_SIGNATURE] ?: "",
         )
     }
 
@@ -103,6 +106,10 @@ class AppPreferences(private val context: Context) {
 
     suspend fun updateLastBackupTimestamp(ts: Long) {
         context.luminaDataStore.edit { it[Keys.LAST_BACKUP] = ts }
+    }
+
+    suspend fun updateSavedSignature(strokes: String) {
+        context.luminaDataStore.edit { it[Keys.SAVED_SIGNATURE] = strokes }
     }
 
     suspend fun applyRestoredSettings(settings: UserSettings) {

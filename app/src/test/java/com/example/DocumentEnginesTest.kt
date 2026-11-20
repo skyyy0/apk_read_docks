@@ -1,8 +1,12 @@
 package com.example
 
+import com.example.data.model.DocumentType
+import com.example.engine.CodeLanguage
+import com.example.engine.CodeSyntaxHighlighter
 import com.example.engine.DocBlock
 import com.example.engine.DocBlockStyle
 import com.example.engine.JsonValidationResult
+import com.example.engine.PdfEngine
 import com.example.engine.PresentationEngine
 import com.example.engine.RichDocument
 import com.example.engine.SheetData
@@ -10,9 +14,11 @@ import com.example.engine.SlideDeck
 import com.example.engine.SlideItem
 import com.example.engine.SpreadsheetEngine
 import com.example.engine.TextDocumentEngine
+import com.example.engine.VsCodePalette
 import com.example.engine.WordDocumentEngine
 import com.example.engine.WorkbookData
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -119,5 +125,66 @@ class DocumentEnginesTest {
         assertTrue(valid is JsonValidationResult.Valid)
         val invalid = TextDocumentEngine.validateAndFormatJson("""{"broken": """)
         assertTrue(invalid is JsonValidationResult.Invalid)
+    }
+
+    @Test
+    fun codeIdeHighlighterDetectsLanguagesSymbolsAndFormats() {
+        assertTrue(DocumentType.TEXT.isCodeDocument("landing.html"))
+        assertTrue(DocumentType.CSS.isCodeDocument("styles.css"))
+        assertTrue(DocumentType.JS.isCodeDocument("app.js"))
+        assertFalse(DocumentType.MARKDOWN.isCodeDocument("notes.md"))
+
+        assertEquals(CodeLanguage.HTML, CodeLanguage.detect("index.html", DocumentType.HTML))
+        assertEquals(CodeLanguage.CSS, CodeLanguage.detect("theme.css", DocumentType.CSS))
+        assertEquals(CodeLanguage.JAVASCRIPT, CodeLanguage.detect("main.ts", DocumentType.JS))
+
+        val htmlSample = "<header id=\"hero\"><h1>Hello</h1></header>"
+        val highlighted = CodeSyntaxHighlighter.highlight(htmlSample, CodeLanguage.HTML, VsCodePalette(darkTheme = true))
+        assertTrue(highlighted.spanStyles.size > 1)
+        val formattedHtml = CodeSyntaxHighlighter.formatCode(htmlSample, CodeLanguage.HTML)
+        assertTrue(formattedHtml.contains("\n"))
+
+        val jsSample = "function calculateTotal(a, b) {\nreturn a + b;\n}"
+        val symbols = CodeSyntaxHighlighter.extractSymbols(jsSample, CodeLanguage.JAVASCRIPT)
+        assertTrue(symbols.any { it.name == "calculateTotal" })
+    }
+
+    @Test
+    fun spreadsheetExtendedFormulasEvaluateCorrectly() {
+        val sheet = SheetData(
+            name = "Metrics",
+            rows = listOf(
+                listOf("Name", "Val"),
+                listOf("lumina", "10"),
+                listOf("docs", "30"),
+                listOf("pro", "20"),
+                listOf("Median", "=MEDIAN(B2:B4)"),
+                listOf("Rounded", "=ROUND(3.14159, 2)"),
+                listOf("Abs", "=ABS(-42)"),
+                listOf("Upper", "=UPPER(A2)"),
+                listOf("Len", "=LEN(A3)"),
+                listOf("Concat", "=CONCAT(A2, \" \", A3)"),
+            )
+        )
+        assertEquals("20", SpreadsheetEngine.evaluateCell(sheet, 4, 1))
+        assertEquals("3.14", SpreadsheetEngine.evaluateCell(sheet, 5, 1))
+        assertEquals("42", SpreadsheetEngine.evaluateCell(sheet, 6, 1))
+        assertEquals("LUMINA", SpreadsheetEngine.evaluateCell(sheet, 7, 1))
+        assertEquals("4", SpreadsheetEngine.evaluateCell(sheet, 8, 1))
+        assertEquals("lumina docs", SpreadsheetEngine.evaluateCell(sheet, 9, 1))
+    }
+
+    @Test
+    fun pdfSignatureStrokesRoundTripCorrectly() {
+        val original = listOf(
+            listOf(0.1f to 0.2f, 0.4f to 0.5f, 0.8f to 0.3f),
+            listOf(0.2f to 0.7f, 0.9f to 0.8f),
+        )
+        val serialized = PdfEngine.serializeSignatureStrokes(original)
+        val parsed = PdfEngine.parseSignatureStrokes(serialized)
+        assertEquals(2, parsed.size)
+        assertEquals(3, parsed[0].size)
+        assertEquals(0.1f, parsed[0][0].first, 0.01f)
+        assertEquals(0.8f, parsed[1][1].second, 0.01f)
     }
 }

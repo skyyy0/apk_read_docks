@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForwardIos
+import androidx.compose.material.icons.rounded.DocumentScanner
 import androidx.compose.material.icons.rounded.FileOpen
 import androidx.compose.material.icons.rounded.LibraryAdd
 import androidx.compose.material3.AlertDialog
@@ -56,6 +57,7 @@ fun CreateHubScreen(
     onCreateBlank: (String, DocumentType) -> Unit,
     onImportSingleFile: () -> Unit,
     onImportMultipleFiles: () -> Unit,
+    onOpenScanToPdf: () -> Unit,
 ) {
     val appearance = LocalLuminaAppearance.current
     val isDark = appearance.isDark
@@ -77,8 +79,11 @@ fun CreateHubScreen(
             DocumentType.PPTX,
             DocumentType.CSV,
             DocumentType.MARKDOWN,
-            DocumentType.JSON,
             DocumentType.HTML,
+            DocumentType.CSS,
+            DocumentType.JS,
+            DocumentType.CODE,
+            DocumentType.JSON,
             DocumentType.TEXT,
         )
     }
@@ -208,6 +213,59 @@ fun CreateHubScreen(
                                 )
                                 Text(
                                     text = "Select several documents at once from Downloads, Drive, or SD storage",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowForwardIos,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 72.dp, end = 16.dp),
+                            thickness = 0.5.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                        )
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .bouncyPress(pressedScale = 0.985f)
+                                .clickable {
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onOpenScanToPdf()
+                                }
+                                .padding(16.dp)
+                                .testTag("create_scan_to_pdf_card"),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.16f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.DocumentScanner,
+                                    contentDescription = "Scan photos to PDF",
+                                    tint = MaterialTheme.colorScheme.tertiary,
+                                    modifier = Modifier.size(21.dp),
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Scan Photos to PDF",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                                Text(
+                                    text = "Pick multiple gallery photos, apply B&W scan filter & export PDF",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )

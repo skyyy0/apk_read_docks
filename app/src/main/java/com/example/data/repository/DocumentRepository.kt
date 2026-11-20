@@ -128,9 +128,24 @@ class DocumentRepository(
                 snippet = "JSON document"
             }
             DocumentType.HTML -> {
-                val html = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <title>$cleanTitle</title>\n</head>\n<body>\n  \n</body>\n</html>\n"
+                val html = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>$cleanTitle</title>\n  <style>\n    body { font-family: system-ui, sans-serif; padding: 24px; }\n  </style>\n</head>\n<body>\n  <h1>$cleanTitle</h1>\n  <p>Edit this page in Lumina Code IDE.</p>\n</body>\n</html>\n"
                 TextDocumentEngine.writeText(html, file)
-                snippet = "HTML document"
+                snippet = "HTML5 document"
+            }
+            DocumentType.CSS -> {
+                val css = "/* $cleanTitle Stylesheet */\n:root {\n  --accent: #007acc;\n}\n\nbody {\n  margin: 0;\n  font-family: system-ui, sans-serif;\n}\n"
+                TextDocumentEngine.writeText(css, file)
+                snippet = "CSS3 stylesheet"
+            }
+            DocumentType.JS -> {
+                val js = "// $cleanTitle Script\nfunction initApp() {\n  console.log(\"Ready\");\n}\n\ninitApp();\n"
+                TextDocumentEngine.writeText(js, file)
+                snippet = "JavaScript module"
+            }
+            DocumentType.CODE -> {
+                val code = "// $cleanTitle\nfun main() {\n    println(\"Hello from Lumina Code\")\n}\n"
+                TextDocumentEngine.writeText(code, file)
+                snippet = "Source code"
             }
             DocumentType.TEXT -> {
                 TextDocumentEngine.writeText("", file)
@@ -306,7 +321,7 @@ class DocumentRepository(
                         PresentationEngine.exportDeckToPdf(source.title, deck, outFile)
                         true
                     }
-                    (srcType == DocumentType.MARKDOWN || srcType == DocumentType.TEXT || srcType == DocumentType.JSON || srcType == DocumentType.HTML) &&
+                    (srcType == DocumentType.MARKDOWN || srcType == DocumentType.TEXT || srcType.isCodeFormat) &&
                         targetType == DocumentType.PDF -> {
                         val txt = TextDocumentEngine.readText(srcFile)
                         TextDocumentEngine.exportTextToPdf(source.title, txt, outFile)
@@ -383,6 +398,119 @@ class DocumentRepository(
             val id = db.documentDao().insert(entity)
             entity.copy(id = id)
         }
+
+    suspend fun createPdfFromImages(
+        title: String,
+        pages: List<com.example.engine.ScanPageInput>,
+        filterMode: com.example.engine.ScanFilterMode,
+    ): DocumentEntity? = withContext(Dispatchers.IO) {
+        if (pages.isEmpty()) return@withContext null
+        val cleanTitle = title.trim().ifBlank { "Scanned PDF" }
+        val outName = uniqueFileName(cleanTitle, "pdf")
+        val outFile = File(docsDir, outName)
+        val count = com.example.engine.ImageToPdfEngine.buildPdfFromImageUris(
+            contentResolver = context.contentResolver,
+            pages = pages,
+            filterMode = filterMode,
+            outputFile = outFile,
+        )
+        if (count <= 0 || !outFile.exists()) return@withContext null
+        val now = System.currentTimeMillis()
+        val entity = DocumentEntity(
+            title = cleanTitle,
+            fileName = outName,
+            filePath = outFile.absolutePath,
+            type = DocumentType.PDF.name,
+            sizeBytes = outFile.length(),
+            pageCount = count,
+            wordCount = 0,
+            previewSnippet = "Scanned $count photo(s) • ${filterMode.label}",
+            createdAt = now,
+            updatedAt = now,
+            lastOpenedAt = now,
+        )
+        val id = db.documentDao().insert(entity)
+        entity.copy(id = id)
+    }
+
+    suspend fun reorganizeOrSplitPdf(
+        source: DocumentEntity,
+        pageOps: List<com.example.engine.PdfPageOperation>,
+        replaceOriginal: Boolean,
+        newTitle: String,
+    ): Pair<DocumentEntity, Boolean>? = withContext(Dispatchers.IO) {
+        val srcFile = File(source.filePath)
+        if (!srcFile.exists() || pageOps.isEmpty()) return@withContext null
+        if (replaceOriginal) {
+            val written = PdfEngine.reorganizePdf(srcFile, pageOps, srcFile)
+            if (written <= 0) return@withContext null
+            db.annotationDao().deleteForDocument(source.id)
+            val synced = updateDocumentAfterSave(
+                doc = source,
+                pageCount = written,
+                previewSnippet = "$written page PDF",
+            )
+            val updated = source.copy(
+                sizeBytes = srcFile.length(),
+                pageCount = written,
+                previewSnippet = "$written page PDF",
+                updatedAt = System.currentTimeMillis(),
+            )
+            updated to synced
+        } else {
+            val cleanTitle = newTitle.trim().ifBlank { "${source.title} Split" }
+            val outName = uniqueFileName(cleanTitle, "pdf")
+            val outFile = File(docsDir, outName)
+            val written = PdfEngine.reorganizePdf(srcFile, pageOps, outFile)
+            if (written <= 0 || !outFile.exists()) return@withContext null
+            val now = System.currentTimeMillis()
+            val entity = DocumentEntity(
+                title = cleanTitle,
+                fileName = outName,
+                filePath = outFile.absolutePath,
+                type = DocumentType.PDF.name,
+                sizeBytes = outFile.length(),
+                pageCount = written,
+                wordCount = 0,
+                previewSnippet = "Extracted $written page(s) from ${source.title}",
+                createdAt = now,
+                updatedAt = now,
+                lastOpenedAt = now,
+            )
+            val id = db.documentDao().insert(entity)
+            entity.copy(id = id) to false
+        }
+    }
+
+    suspend fun compressPdfDocument(
+        source: DocumentEntity,
+        renderScale: Float,
+        jpegQuality: Int,
+    ): DocumentEntity? = withContext(Dispatchers.IO) {
+        val srcFile = File(source.filePath)
+        if (!srcFile.exists()) return@withContext null
+        val cleanTitle = "${source.title} (Compact)"
+        val outName = uniqueFileName(cleanTitle, "pdf")
+        val outFile = File(docsDir, outName)
+        val written = PdfEngine.compressPdf(srcFile, renderScale, jpegQuality, outFile)
+        if (written <= 0 || !outFile.exists()) return@withContext null
+        val now = System.currentTimeMillis()
+        val entity = DocumentEntity(
+            title = cleanTitle,
+            fileName = outName,
+            filePath = outFile.absolutePath,
+            type = DocumentType.PDF.name,
+            sizeBytes = outFile.length(),
+            pageCount = written,
+            wordCount = 0,
+            previewSnippet = "Compressed $written page(s)",
+            createdAt = now,
+            updatedAt = now,
+            lastOpenedAt = now,
+        )
+        val id = db.documentDao().insert(entity)
+        entity.copy(id = id)
+    }
 
     suspend fun duplicateDocument(source: DocumentEntity): DocumentEntity? = withContext(Dispatchers.IO) {
         val srcFile = File(source.filePath)

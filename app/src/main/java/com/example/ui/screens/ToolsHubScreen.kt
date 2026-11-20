@@ -23,10 +23,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.MergeType
+import androidx.compose.material.icons.rounded.Compress
+import androidx.compose.material.icons.rounded.DocumentScanner
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -68,6 +71,8 @@ fun ToolsHubScreen(
     allDocuments: List<DocumentEntity>,
     onConvertDocument: (DocumentEntity, DocumentType) -> Unit,
     onMergePdfs: (List<DocumentEntity>, String) -> Unit,
+    onCompressPdf: (DocumentEntity, Float, Int) -> Unit,
+    onOpenScanToPdf: () -> Unit,
 ) {
     val isDark = LocalLuminaAppearance.current.isDark
     val haptics = LocalHapticFeedback.current
@@ -92,7 +97,7 @@ fun ToolsHubScreen(
             DocumentType.CSV -> listOf(DocumentType.XLSX, DocumentType.PDF)
             DocumentType.PPTX -> listOf(DocumentType.PDF)
             DocumentType.MARKDOWN, DocumentType.TEXT -> listOf(DocumentType.PDF, DocumentType.DOCX, DocumentType.HTML)
-            DocumentType.JSON, DocumentType.HTML -> listOf(DocumentType.PDF)
+            DocumentType.JSON, DocumentType.HTML, DocumentType.CSS, DocumentType.JS, DocumentType.CODE -> listOf(DocumentType.PDF)
             else -> emptyList()
         }
     }
@@ -103,6 +108,15 @@ fun ToolsHubScreen(
     val pdfDocs = remember(allDocuments) { allDocuments.filter { it.docType == DocumentType.PDF } }
     val selectedPdfIds = remember { mutableStateListOf<Long>() }
     var mergedPdfTitle by remember { mutableStateOf("Combined Document") }
+    var compressSourceId by remember(pdfDocs) { mutableStateOf(pdfDocs.firstOrNull()?.id) }
+    val compressPresets = remember {
+        listOf(
+            Triple("WhatsApp Compact", 1.15f, 55),
+            Triple("Balanced", 1.45f, 72),
+            Triple("High Clarity", 1.85f, 86),
+        )
+    }
+    var selectedCompressPresetIdx by remember { mutableStateOf(1) }
 
     val totalBytes = remember(allDocuments) { allDocuments.sumOf { it.sizeBytes }.coerceAtLeast(1L) }
 
@@ -374,6 +388,115 @@ fun ToolsHubScreen(
                             shape = CircleShape,
                         ) {
                             Text("Merge ${selectedPdfIds.size} Selected PDFs")
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2b. Photos-to-PDF Scanner & PDF Compressor
+        item {
+            EditorialSectionSurface(
+                shape = RoundedCornerShape(26.dp),
+                tonalLevel = sectionColor,
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.14f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Compress,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.tertiary,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "PDF Scanner & Compressor",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Text(
+                                text = "Shrink PDF file sizes for WhatsApp or scan gallery photos",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+
+                    FilledTonalButton(
+                        onClick = onOpenScanToPdf,
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("tools_scan_pdf_button"),
+                    ) {
+                        Icon(Icons.Rounded.DocumentScanner, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Scan Photos from Gallery to PDF")
+                    }
+
+                    if (pdfDocs.isNotEmpty()) {
+                        HorizontalDivider(
+                            thickness = 0.5.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                        )
+                        Text(
+                            text = "Select PDF to compress",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(pdfDocs, key = { it.id }) { pdf ->
+                                FilterChip(
+                                    selected = pdf.id == compressSourceId,
+                                    onClick = { compressSourceId = pdf.id },
+                                    shape = CircleShape,
+                                    label = {
+                                        Text("${pdf.title.take(16)} (${formatByteSize(pdf.sizeBytes)})", maxLines = 1)
+                                    },
+                                )
+                            }
+                        }
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(compressPresets.size) { idx ->
+                                val (label, _, _) = compressPresets[idx]
+                                FilterChip(
+                                    selected = selectedCompressPresetIdx == idx,
+                                    onClick = { selectedCompressPresetIdx = idx },
+                                    shape = CircleShape,
+                                    label = { Text(label) },
+                                )
+                            }
+                        }
+                        val targetPdf = pdfDocs.firstOrNull { it.id == compressSourceId }
+                        val (_, scale, quality) = compressPresets[selectedCompressPresetIdx]
+                        Button(
+                            enabled = targetPdf != null,
+                            onClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                targetPdf?.let { onCompressPdf(it, scale, quality) }
+                            },
+                            shape = CircleShape,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .testTag("compress_pdf_button"),
+                        ) {
+                            Text("Compress Selected PDF")
                         }
                     }
                 }

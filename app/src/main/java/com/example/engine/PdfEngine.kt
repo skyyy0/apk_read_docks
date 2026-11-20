@@ -11,12 +11,21 @@ import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import android.util.LruCache
 import com.example.data.model.PdfAnnotationEntity
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.graphics.Path
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 
 data class PdfTextPage(
     val title: String,
     val body: String,
+)
+
+data class PdfPageOperation(
+    val sourceIndex: Int,
+    val rotationDeg: Int = 0,
 )
 
 object PdfEngine {
@@ -166,8 +175,8 @@ object PdfEngine {
     }
 
     /**
-     * Bakes all user annotations (text overlays, highlights, sticky notes) and any appended pages
-     * directly into a real updated PDF file on disk!
+     * Bakes all user annotations (text overlays, highlights, sticky notes, vector signatures, stamps)
+     * and any appended pages directly into a real updated PDF file on disk.
      */
     fun bakeAnnotationsAndPages(
         sourceFile: File,
@@ -235,6 +244,54 @@ object PdfEngine {
                                     canvas.drawRoundRect(rect, 6f, 6f, bg)
                                     canvas.drawRoundRect(rect, 6f, 6f, border)
                                     canvas.drawText(ann.content.take(36), ax + 8f, ay + 2f, txtPaint)
+                                }
+                                "SIGNATURE" -> {
+                                    val sigPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                        color = baseColor
+                                        style = Paint.Style.STROKE
+                                        strokeWidth = 2.4f
+                                        strokeCap = Paint.Cap.ROUND
+                                        strokeJoin = Paint.Join.ROUND
+                                    }
+                                    val boxW = (w * 0.28f).coerceIn(110f, 190f)
+                                    val boxH = boxW * 0.45f
+                                    val left = (ax - boxW * 0.5f).coerceIn(12f, (w - boxW - 12f).coerceAtLeast(12f))
+                                    val top = (ay - boxH * 0.5f).coerceIn(12f, (h - boxH - 12f).coerceAtLeast(12f))
+                                    val strokes = parseSignatureStrokes(ann.content)
+                                    for (stroke in strokes) {
+                                        if (stroke.isEmpty()) continue
+                                        val path = Path()
+                                        stroke.forEachIndexed { ptIdx, (sx, sy) ->
+                                            val px = left + sx * boxW
+                                            val py = top + sy * boxH
+                                            if (ptIdx == 0) path.moveTo(px, py) else path.lineTo(px, py)
+                                        }
+                                        canvas.drawPath(path, sigPaint)
+                                    }
+                                }
+                                "STAMP" -> {
+                                    val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                        color = baseColor
+                                        style = Paint.Style.STROKE
+                                        strokeWidth = 2.0f
+                                    }
+                                    val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                        color = Color.argb(26, Color.red(baseColor), Color.green(baseColor), Color.blue(baseColor))
+                                    }
+                                    val txtPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                        color = baseColor
+                                        textSize = 11f
+                                        typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+                                    }
+                                    val label = ann.content.take(32)
+                                    val boxW = (txtPaint.measureText(label) + 22f).coerceIn(88f, 210f)
+                                    val rect = RectF(ax, ay - 16f, ax + boxW, ay + 12f)
+                                    canvas.save()
+                                    canvas.rotate(-6f, rect.centerX(), rect.centerY())
+                                    canvas.drawRoundRect(rect, 7f, 7f, bgPaint)
+                                    canvas.drawRoundRect(rect, 7f, 7f, borderPaint)
+                                    canvas.drawText(label, ax + 11f, ay + 2f, txtPaint)
+                                    canvas.restore()
                                 }
                                 else -> { // TEXT
                                     val txtPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -353,5 +410,148 @@ object PdfEngine {
         tempOut.renameTo(outputFile)
         clearRenderCache()
         return writtenPages
+    }
+
+    /**
+     * Reorders, rotates, or extracts a subset of pages from a real PDF file.
+     */
+    fun reorganizePdf(
+        sourceFile: File,
+        pageOps: List<PdfPageOperation>,
+        outputFile: File,
+    ): Int {
+        if (pageOps.isEmpty()) return 0
+        val pdf = PdfDocument()
+        val tempOut = File(outputFile.parentFile, "tmp_org_${System.currentTimeMillis()}.pdf")
+        var written = 0
+
+        ParcelFileDescriptor.open(sourceFile, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
+            PdfRenderer(pfd).use { renderer ->
+                for (op in pageOps) {
+                    if (op.sourceIndex !in 0 until renderer.pageCount) continue
+                    renderer.openPage(op.sourceIndex).use { srcPage ->
+                        written++
+                        val rot = ((op.rotationDeg % 360) + 360) % 360
+                        val swapDims = rot == 90 || rot == 270
+                        val srcW = srcPage.width
+                        val srcH = srcPage.height
+                        val dstW = if (swapDims) srcH else srcW
+                        val dstH = if (swapDims) srcW else srcH
+
+                        val scale = 2
+                        val rawBmp = Bitmap.createBitmap(srcW * scale, srcH * scale, Bitmap.Config.ARGB_8888)
+                        Canvas(rawBmp).drawColor(Color.WHITE)
+                        srcPage.render(rawBmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
+
+                        val finalBmp = if (rot != 0) {
+                            val m = Matrix().apply { postRotate(rot.toFloat()) }
+                            val rotated = Bitmap.createBitmap(rawBmp, 0, 0, rawBmp.width, rawBmp.height, m, true)
+                            if (rotated !== rawBmp) rawBmp.recycle()
+                            rotated
+                        } else rawBmp
+
+                        val outPage = pdf.startPage(PdfDocument.PageInfo.Builder(dstW, dstH, written).create())
+                        outPage.canvas.drawBitmap(finalBmp, null, RectF(0f, 0f, dstW.toFloat(), dstH.toFloat()), null)
+                        finalBmp.recycle()
+                        pdf.finishPage(outPage)
+                    }
+                }
+            }
+        }
+
+        if (written > 0) {
+            FileOutputStream(tempOut).use { pdf.writeTo(it) }
+        }
+        pdf.close()
+        if (written > 0) {
+            if (outputFile.exists()) outputFile.delete()
+            tempOut.renameTo(outputFile)
+            clearRenderCache()
+        } else if (tempOut.exists()) {
+            tempOut.delete()
+        }
+        return written
+    }
+
+    /**
+     * Compresses an existing PDF by rendering pages at target DPI scale and JPEG quality.
+     */
+    fun compressPdf(
+        sourceFile: File,
+        renderScale: Float,
+        jpegQuality: Int,
+        outputFile: File,
+    ): Int {
+        val pdf = PdfDocument()
+        val tempOut = File(outputFile.parentFile, "tmp_cmp_${System.currentTimeMillis()}.pdf")
+        var written = 0
+
+        ParcelFileDescriptor.open(sourceFile, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
+            PdfRenderer(pfd).use { renderer ->
+                for (i in 0 until renderer.pageCount) {
+                    renderer.openPage(i).use { srcPage ->
+                        written++
+                        val w = srcPage.width
+                        val h = srcPage.height
+                        val bmpW = (w * renderScale).toInt().coerceIn(220, 1800)
+                        val bmpH = (h * renderScale).toInt().coerceIn(280, 2500)
+                        val bmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
+                        Canvas(bmp).drawColor(Color.WHITE)
+                        srcPage.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+
+                        val jpegStream = ByteArrayOutputStream()
+                        bmp.compress(Bitmap.CompressFormat.JPEG, jpegQuality.coerceIn(35, 95), jpegStream)
+                        bmp.recycle()
+                        val bytes = jpegStream.toByteArray()
+                        val compressedBmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+
+                        val outPage = pdf.startPage(PdfDocument.PageInfo.Builder(w, h, written).create())
+                        if (compressedBmp != null) {
+                            outPage.canvas.drawBitmap(compressedBmp, null, RectF(0f, 0f, w.toFloat(), h.toFloat()), null)
+                            compressedBmp.recycle()
+                        }
+                        pdf.finishPage(outPage)
+                    }
+                }
+            }
+        }
+
+        if (written > 0) {
+            FileOutputStream(tempOut).use { pdf.writeTo(it) }
+        }
+        pdf.close()
+        if (written > 0) {
+            if (outputFile.exists()) outputFile.delete()
+            tempOut.renameTo(outputFile)
+            clearRenderCache()
+        } else if (tempOut.exists()) {
+            tempOut.delete()
+        }
+        return written
+    }
+
+    fun serializeSignatureStrokes(strokes: List<List<Pair<Float, Float>>>): String {
+        return strokes
+            .filter { it.isNotEmpty() }
+            .joinToString("|") { stroke ->
+                stroke.joinToString(";") { (x, y) ->
+                    String.format(java.util.Locale.US, "%.3f,%.3f", x.coerceIn(0f, 1f), y.coerceIn(0f, 1f))
+                }
+            }
+    }
+
+    fun parseSignatureStrokes(raw: String): List<List<Pair<Float, Float>>> {
+        if (raw.isBlank()) return emptyList()
+        return raw.split('|').mapNotNull { strokeStr ->
+            val pts = strokeStr.split(';').mapNotNull { pt ->
+                val xy = pt.split(',')
+                if (xy.size == 2) {
+                    val x = xy[0].toFloatOrNull()
+                    val y = xy[1].toFloatOrNull()
+                    if (x != null && y != null) x to y else null
+                } else null
+            }
+            pts.takeIf { it.isNotEmpty() }
+        }
     }
 }

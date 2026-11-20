@@ -527,6 +527,9 @@ fun formatAccentColor(type: DocumentType): Color = when (type) {
     DocumentType.PPTX -> FormatSlidesColor
     DocumentType.MARKDOWN -> FormatMarkdownColor
     DocumentType.JSON, DocumentType.HTML -> FormatCodeColor
+    DocumentType.CSS -> Color(0xFF0EA5E9)
+    DocumentType.JS -> Color(0xFFEAB308)
+    DocumentType.CODE -> Color(0xFF6366F1)
     DocumentType.TEXT -> FormatTextColor
 }
 

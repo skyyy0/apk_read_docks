@@ -81,4 +81,32 @@ class ExampleRobolectricTest {
             .performScrollToNode(hasTestTag("toggle_power_saving"))
         composeRule.onNodeWithTag("toggle_power_saving").assertIsDisplayed().performClick()
     }
+
+    @Test
+    fun `manifest resolves code files and html file opens in vscode ide mode`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val pm = context.packageManager
+
+        val viewHtmlIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(Uri.parse("content://com.android.externalstorage/document/index.html"), "text/html")
+        }
+        assertTrue(pm.queryIntentActivities(viewHtmlIntent, 0).any { it.activityInfo.packageName == context.packageName })
+
+        val viewJsIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(Uri.parse("content://com.android.externalstorage/document/app.js"), "application/javascript")
+        }
+        assertTrue(pm.queryIntentActivities(viewJsIntent, 0).any { it.activityInfo.packageName == context.packageName })
+
+        composeRule.onNodeWithTag("library_fab_new").assertIsDisplayed().performClick()
+        composeRule.onNodeWithTag("create_hub_list")
+            .performScrollToNode(hasTestTag("create_blank_txt"))
+        composeRule.onNodeWithTag("create_blank_html").performClick()
+        composeRule.onNodeWithTag("confirm_create_blank").assertIsDisplayed().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 5000) {
+            composeRule.onAllNodes(hasTestTag("vscode_ide_root")).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("vscode_ide_root").assertIsDisplayed()
+        composeRule.onNodeWithTag("vscode_run_html").assertIsDisplayed()
+    }
 }

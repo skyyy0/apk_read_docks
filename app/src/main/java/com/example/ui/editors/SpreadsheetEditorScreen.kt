@@ -31,12 +31,14 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Functions
 import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.PictureAsPdf
 import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material.icons.rounded.SortByAlpha
+import androidx.compose.material.icons.rounded.VerticalAlignTop
 import androidx.compose.material.icons.rounded.ViewColumn
 import androidx.compose.material.icons.rounded.ViewStream
 import androidx.compose.material3.AlertDialog
@@ -44,10 +46,10 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
@@ -118,8 +120,12 @@ fun SpreadsheetEditorScreen(
 
     var showNewSheetDialog by remember { mutableStateOf(false) }
     var newSheetName by remember { mutableStateOf("Sheet ${state.workbook.sheets.size + 1}") }
+    var freezeHeaderRow by remember { mutableStateOf(true) }
+    var showChartDialog by remember { mutableStateOf(false) }
 
-    val quickFormulas = remember { listOf("=SUM(", "=AVERAGE(", "=MIN(", "=MAX(", "=COUNT(", "=IF(") }
+    val quickFormulas = remember {
+        listOf("=SUM(", "=AVERAGE(", "=MEDIAN(", "=MIN(", "=MAX(", "=COUNT(", "=ROUND(", "=IF(", "=CONCAT(")
+    }
     val colWidth = 112.dp
     val rowIndexWidth = 42.dp
     val cellHeight = 40.dp
@@ -170,6 +176,26 @@ fun SpreadsheetEditorScreen(
                         style = MaterialTheme.typography.labelSmall,
                         fontFamily = JetBrainsMonoFamily,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(
+                    onClick = { showChartDialog = true },
+                    modifier = Modifier.testTag("excel_chart_button"),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.BarChart,
+                        contentDescription = "Generate chart from sheet",
+                        tint = FormatExcelColor,
+                    )
+                }
+                IconButton(
+                    onClick = { freezeHeaderRow = !freezeHeaderRow },
+                    modifier = Modifier.testTag("excel_freeze_toggle"),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.VerticalAlignTop,
+                        contentDescription = "Freeze Row 1",
+                        tint = if (freezeHeaderRow) FormatExcelColor else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 IconButton(onClick = onSortColumn) {
@@ -336,74 +362,51 @@ fun SpreadsheetEditorScreen(
                     }
                 }
 
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    itemsIndexed(activeSheet.rows) { rIdx, rowCells ->
-                        val isRowSelected = rIdx == state.selectedRow
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(horizontalScroll),
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .width(rowIndexWidth)
-                                    .height(cellHeight)
-                                    .background(if (isRowSelected) FormatExcelColor.copy(alpha = 0.16f) else headerBg)
-                                    .border(0.5.dp, borderColor),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    text = "${rIdx + 1}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontFamily = JetBrainsMonoFamily,
-                                    color = if (isRowSelected) FormatExcelColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
+                if (freezeHeaderRow && activeSheet.rows.isNotEmpty()) {
+                    SpreadsheetGridRow(
+                        rIdx = 0,
+                        rowCells = activeSheet.rows.first(),
+                        colCount = activeSheet.colCount,
+                        selectedRow = state.selectedRow,
+                        selectedCol = state.selectedCol,
+                        evaluatedCells = evaluatedCells,
+                        horizontalScroll = horizontalScroll,
+                        rowIndexWidth = rowIndexWidth,
+                        colWidth = colWidth,
+                        cellHeight = cellHeight,
+                        fontSizeSp = fontSizeSp,
+                        headerBg = headerBg,
+                        borderColor = borderColor,
+                        onSelectCell = onSelectCell,
+                    )
+                    HorizontalDivider(thickness = 1.dp, color = FormatExcelColor.copy(alpha = 0.45f))
+                }
 
-                            for (cIdx in 0 until activeSheet.colCount) {
-                                val isSelected = rIdx == state.selectedRow && cIdx == state.selectedCol
-                                val rawValue = rowCells.getOrNull(cIdx) ?: ""
-                                val displayValue = if (rawValue.startsWith("=")) {
-                                    evaluatedCells[(rIdx shl 16) or cIdx] ?: ""
-                                } else {
-                                    rawValue
-                                }
-                                val isHeaderRow = rIdx == 0
-                                Box(
-                                    modifier = Modifier
-                                        .width(colWidth)
-                                        .height(cellHeight)
-                                        .background(
-                                            when {
-                                                isSelected -> FormatExcelColor.copy(alpha = 0.13f)
-                                                isHeaderRow -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f)
-                                                else -> Color.Transparent
-                                            }
-                                        )
-                                        .border(
-                                            width = if (isSelected) 1.5.dp else 0.5.dp,
-                                            color = if (isSelected) FormatExcelColor else borderColor,
-                                        )
-                                        .clickable { onSelectCell(rIdx, cIdx) }
-                                        .padding(horizontal = 8.dp),
-                                    contentAlignment = Alignment.CenterStart,
-                                ) {
-                                    Text(
-                                        text = displayValue,
-                                        fontSize = (fontSizeSp - 2).coerceIn(11, 16).sp,
-                                        fontWeight = if (isHeaderRow || rawValue.startsWith("=")) FontWeight.SemiBold else FontWeight.Normal,
-                                        fontFamily = if (rawValue.startsWith("=") || displayValue.toDoubleOrNull() != null) {
-                                            JetBrainsMonoFamily
-                                        } else {
-                                            MaterialTheme.typography.bodyMedium.fontFamily
-                                        },
-                                        color = if (displayValue.startsWith("#")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                }
-                            }
-                        }
+                val bodyRows = if (freezeHeaderRow && activeSheet.rows.isNotEmpty()) {
+                    activeSheet.rows.drop(1)
+                } else {
+                    activeSheet.rows
+                }
+
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    itemsIndexed(bodyRows) { idx, rowCells ->
+                        val rIdx = if (freezeHeaderRow && activeSheet.rows.isNotEmpty()) idx + 1 else idx
+                        SpreadsheetGridRow(
+                            rIdx = rIdx,
+                            rowCells = rowCells,
+                            colCount = activeSheet.colCount,
+                            selectedRow = state.selectedRow,
+                            selectedCol = state.selectedCol,
+                            evaluatedCells = evaluatedCells,
+                            horizontalScroll = horizontalScroll,
+                            rowIndexWidth = rowIndexWidth,
+                            colWidth = colWidth,
+                            cellHeight = cellHeight,
+                            fontSizeSp = fontSizeSp,
+                            headerBg = headerBg,
+                            borderColor = borderColor,
+                            onSelectCell = onSelectCell,
+                        )
                     }
                 }
             }
@@ -487,6 +490,99 @@ fun SpreadsheetEditorScreen(
                 TextButton(onClick = { showNewSheetDialog = false }) { Text("Cancel") }
             },
         )
+    }
+
+    if (showChartDialog) {
+        SpreadsheetChartDialog(
+            sheet = activeSheet,
+            evaluatedCells = evaluatedCells,
+            onDismiss = { showChartDialog = false },
+        )
+    }
+}
+
+@Composable
+private fun SpreadsheetGridRow(
+    rIdx: Int,
+    rowCells: List<String>,
+    colCount: Int,
+    selectedRow: Int,
+    selectedCol: Int,
+    evaluatedCells: Map<Int, String>,
+    horizontalScroll: androidx.compose.foundation.ScrollState,
+    rowIndexWidth: androidx.compose.ui.unit.Dp,
+    colWidth: androidx.compose.ui.unit.Dp,
+    cellHeight: androidx.compose.ui.unit.Dp,
+    fontSizeSp: Int,
+    headerBg: Color,
+    borderColor: Color,
+    onSelectCell: (Int, Int) -> Unit,
+) {
+    val isRowSelected = rIdx == selectedRow
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(horizontalScroll),
+    ) {
+        Box(
+            modifier = Modifier
+                .width(rowIndexWidth)
+                .height(cellHeight)
+                .background(if (isRowSelected) FormatExcelColor.copy(alpha = 0.16f) else headerBg)
+                .border(0.5.dp, borderColor),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "${rIdx + 1}",
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = JetBrainsMonoFamily,
+                color = if (isRowSelected) FormatExcelColor else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        for (cIdx in 0 until colCount) {
+            val isSelected = rIdx == selectedRow && cIdx == selectedCol
+            val rawValue = rowCells.getOrNull(cIdx) ?: ""
+            val displayValue = if (rawValue.startsWith("=")) {
+                evaluatedCells[(rIdx shl 16) or cIdx] ?: ""
+            } else {
+                rawValue
+            }
+            val isHeaderRow = rIdx == 0
+            Box(
+                modifier = Modifier
+                    .width(colWidth)
+                    .height(cellHeight)
+                    .background(
+                        when {
+                            isSelected -> FormatExcelColor.copy(alpha = 0.13f)
+                            isHeaderRow -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f)
+                            else -> Color.Transparent
+                        }
+                    )
+                    .border(
+                        width = if (isSelected) 1.5.dp else 0.5.dp,
+                        color = if (isSelected) FormatExcelColor else borderColor,
+                    )
+                    .clickable { onSelectCell(rIdx, cIdx) }
+                    .padding(horizontal = 8.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                Text(
+                    text = displayValue,
+                    fontSize = (fontSizeSp - 2).coerceIn(11, 16).sp,
+                    fontWeight = if (isHeaderRow || rawValue.startsWith("=")) FontWeight.SemiBold else FontWeight.Normal,
+                    fontFamily = if (rawValue.startsWith("=") || displayValue.toDoubleOrNull() != null) {
+                        JetBrainsMonoFamily
+                    } else {
+                        MaterialTheme.typography.bodyMedium.fontFamily
+                    },
+                    color = if (displayValue.startsWith("#")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
 

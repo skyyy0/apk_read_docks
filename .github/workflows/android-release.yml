@@ -98,11 +98,12 @@ jobs:
             **Developer:** sky | **Package ID:** `com.luminadocs.id`
 
             #### Highlights (v${{ steps.meta.outputs.version }})
-            - **iOS 26 Liquid Glass Floating Dock & Specular Orbs**: Detached capsule Liquid Glass navigation dock with elastic spring-sliding indicator pill, floating circular `+` glass orb, translucent search & filter capsules, and inset-grouped continuous document lists
-            - **Smooth Physics & iOS-Crafted Controls**: Spring-animated iOS segmented theme capsules, spring toggle switches (`LuminaIosSwitch`), GPU-cached atmospheric glow canvas, and tactile bouncy press feedback
-            - **O(1) Memoized Excel Grid & Fast PDF Engine**: Pre-computed worksheet formula evaluation map for zero-jank scrolling, LRU PDF bitmap caching with neighbor pre-rendering, pinch/double-tap zoom & swipe page turning
-            - **Open Directly from WhatsApp, Telegram & Files**: Full Android `ACTION_VIEW` & `ACTION_SEND` intent integration for `.pdf`, `.docx`, `.xlsx`, `.pptx`, `.csv`, `.md`, `.txt`, and `.json`
-            - **Full Offline Document Suite**: Native **PDF** Reader/Annotator/Merger, **Excel (`.xlsx` / `.csv`)** formula engine, **Word (`.docx`)** & **PowerPoint (`.pptx`)** editors, **Markdown / JSON** editor, and **Settings** (Mode Hemat Daya, OLED Black, `.luminabak` Backup & Restore)
+            - **VS Code Adaptive Code IDE**: Auto-switches to a full VS Code-style Dark+/Light+ code editor when opening `.html`, `.css`, `.js`, `.ts`, `.json`, `.xml`, `.kt`, `.py`, `.sql`, and more — with live syntax highlighting, line gutter, symbol Outline, Find & Replace, Code Beautifier, keyboard token ribbon, and sandboxed live HTML/CSS/JS preview
+            - **PDF Digital Signature Pad & Stamps**: Draw smooth finger signatures, save locally for 1-tap reuse, apply dated vector stamps (`APPROVED`, `VERIFIED`, `PAID`, `CONFIDENTIAL`), and bake cleanly into the PDF
+            - **PDF Page Organizer, Splitter & Compressor**: Reorder, rotate 90°, delete, or extract/split pages into a new PDF — plus WhatsApp Compact / Balanced / High Clarity PDF compressor in Lab
+            - **Photos to PDF Scanner**: Zero-permission Android Photo Picker multi-image scanner with page reorder, rotation, and B&W Document / Crisp / Original filters
+            - **Live Excel Data Charts & Freeze Header**: Interactive Bar, Line, and Donut charts rendered directly from worksheet formulas, Freeze Row 1 toggle, and `MEDIAN`, `ROUND`, `ABS`, `LEN`, `UPPER`, `LOWER`, `CONCAT` formulas
+            - **iOS 26 Liquid Glass UI & Direct App Sharing**: Detached Liquid Glass navigation dock, tactile spring animations, and `ACTION_VIEW` / `ACTION_SEND` handling from WhatsApp, Telegram & Files
           files: ${{ steps.meta.outputs.apk_file }}
           draft: false
           prerelease: false

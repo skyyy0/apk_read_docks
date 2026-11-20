@@ -294,7 +294,13 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
                         deck = deck,
                     )
                 }
-                DocumentType.MARKDOWN, DocumentType.TEXT, DocumentType.JSON, DocumentType.HTML -> {
+                DocumentType.MARKDOWN,
+                DocumentType.TEXT,
+                DocumentType.JSON,
+                DocumentType.HTML,
+                DocumentType.CSS,
+                DocumentType.JS,
+                DocumentType.CODE -> {
                     val text = withContext(Dispatchers.IO) { TextDocumentEngine.readText(file) }
                     _editorState.value = ActiveEditorState.TextEditor(
                         document = doc,
@@ -449,6 +455,51 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
             }
             _isBusy.value = false
             emitMessage(if (synced) "PDF saved & synced to original file ($newPageCount pages)" else "PDF saved ($newPageCount pages)")
+        }
+    }
+
+    fun reorganizeCurrentPdf(
+        pageOps: List<com.example.engine.PdfPageOperation>,
+        replaceOriginal: Boolean,
+        splitTitle: String,
+    ) {
+        val state = _editorState.value as? ActiveEditorState.PdfEditor ?: return
+        viewModelScope.launch {
+            _isBusy.value = true
+            val result = repository.reorganizeOrSplitPdf(
+                source = state.document,
+                pageOps = pageOps,
+                replaceOriginal = replaceOriginal,
+                newTitle = splitTitle,
+            )
+            _isBusy.value = false
+            if (result != null) {
+                val (doc, synced) = result
+                if (replaceOriginal) {
+                    _editorState.update { current ->
+                        if (current is ActiveEditorState.PdfEditor) {
+                            current.copy(
+                                document = doc,
+                                pageCount = doc.pageCount,
+                                currentPage = current.currentPage.coerceAtMost((doc.pageCount - 1).coerceAtLeast(0)),
+                                renderVersion = current.renderVersion + 1,
+                            )
+                        } else current
+                    }
+                    emitMessage(if (synced) "Updated & synced PDF (${doc.pageCount} pages)" else "Reorganized PDF (${doc.pageCount} pages)")
+                } else {
+                    emitMessage("Created split PDF: ${doc.title} (${doc.pageCount} pages)")
+                    openDocument(doc)
+                }
+            } else {
+                emitMessage("Could not reorganize PDF pages")
+            }
+        }
+    }
+
+    fun saveSignatureTemplate(strokesSerialized: String) {
+        viewModelScope.launch {
+            prefs.updateSavedSignature(strokesSerialized)
         }
     }
 
@@ -831,6 +882,61 @@ class LuminaViewModel(application: Application) : AndroidViewModel(application) 
             }
             if (!silent) {
                 emitMessage(if (synced) "Saved & synced ${state.document.title}" else "Saved ${state.document.title}")
+            }
+        }
+    }
+
+    fun replaceInTextDocument(find: String, replace: String, replaceAll: Boolean) {
+        if (find.isEmpty()) return
+        var replacedCount = 0
+        _editorState.update { state ->
+            if (state is ActiveEditorState.TextEditor) {
+                val updated = if (replaceAll) {
+                    val parts = state.content.split(find, ignoreCase = true)
+                    replacedCount = (parts.size - 1).coerceAtLeast(0)
+                    parts.joinToString(replace)
+                } else {
+                    val idx = state.content.indexOf(find, ignoreCase = true)
+                    if (idx >= 0) {
+                        replacedCount = 1
+                        state.content.replaceRange(idx, idx + find.length, replace)
+                    } else state.content
+                }
+                if (replacedCount > 0) state.copy(content = updated, hasUnsavedChanges = true) else state
+            } else state
+        }
+        emitMessage(if (replacedCount > 0) "Replaced $replacedCount occurrence(s)" else "No matches for \"$find\"")
+    }
+
+    fun createPdfFromImages(
+        title: String,
+        pages: List<com.example.engine.ScanPageInput>,
+        filterMode: com.example.engine.ScanFilterMode,
+    ) {
+        viewModelScope.launch {
+            _isBusy.value = true
+            val created = repository.createPdfFromImages(title, pages, filterMode)
+            _isBusy.value = false
+            if (created != null) {
+                emitMessage("Scanned ${created.pageCount} photo(s) into ${created.title}")
+                openDocument(created)
+            } else {
+                emitMessage("Could not build PDF from selected photos")
+            }
+        }
+    }
+
+    fun compressPdfDocument(doc: DocumentEntity, renderScale: Float, jpegQuality: Int) {
+        viewModelScope.launch {
+            _isBusy.value = true
+            val beforeBytes = doc.sizeBytes
+            val compressed = repository.compressPdfDocument(doc, renderScale, jpegQuality)
+            _isBusy.value = false
+            if (compressed != null) {
+                emitMessage("Compressed: ${formatByteSize(beforeBytes)} → ${formatByteSize(compressed.sizeBytes)}")
+                openDocument(compressed)
+            } else {
+                emitMessage("PDF compression failed")
             }
         }
     }

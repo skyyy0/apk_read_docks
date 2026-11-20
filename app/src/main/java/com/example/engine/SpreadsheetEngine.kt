@@ -143,10 +143,50 @@ object SpreadsheetEngine {
             }
         }
 
-        // Replace aggregate functions SUM/AVERAGE/AVG/MIN/MAX/COUNT
-        val fnRegex = Regex("(SUM|AVERAGE|AVG|MIN|MAX|COUNT)\\(([^()]+)\\)", RegexOption.IGNORE_CASE)
+        // Scalar string/math functions: UPPER, LOWER, LEN, ROUND, ABS, CONCAT
+        val scalarFnRegex = Regex("(UPPER|LOWER|LEN|ABS|ROUND|CONCAT)\\(([^()]+)\\)", RegexOption.IGNORE_CASE)
         var resolved = expr
         var guard = 0
+        while (scalarFnRegex.containsMatchIn(resolved) && guard < 16) {
+            guard++
+            val m = scalarFnRegex.find(resolved) ?: break
+            val fnName = m.groupValues[1].uppercase(Locale.US)
+            val rawArgs = splitTopLevelArgs(m.groupValues[2]).map { arg ->
+                val t = arg.trim()
+                when {
+                    t.startsWith("\"") && t.endsWith("\"") && t.length >= 2 -> t.substring(1, t.length - 1)
+                    parseCellRef(t) != null -> {
+                        val ref = parseCellRef(t)!!
+                        evaluateCell(sheet, ref.first, ref.second, visited)
+                    }
+                    else -> t
+                }
+            }
+            when (fnName) {
+                "UPPER" -> return (rawArgs.firstOrNull() ?: "").uppercase(Locale.US)
+                "LOWER" -> return (rawArgs.firstOrNull() ?: "").lowercase(Locale.US)
+                "CONCAT" -> return rawArgs.joinToString("")
+                "LEN" -> {
+                    val lenVal = (rawArgs.firstOrNull() ?: "").length.toDouble()
+                    resolved = resolved.replaceRange(m.range, lenVal.toString())
+                }
+                "ABS" -> {
+                    val v = parseNumeric(rawArgs.firstOrNull() ?: "") ?: 0.0
+                    resolved = resolved.replaceRange(m.range, kotlin.math.abs(v).toString())
+                }
+                "ROUND" -> {
+                    val v = parseNumeric(rawArgs.getOrNull(0) ?: "") ?: 0.0
+                    val digits = (parseNumeric(rawArgs.getOrNull(1) ?: "0") ?: 0.0).toInt().coerceIn(0, 6)
+                    val factor = Math.pow(10.0, digits.toDouble())
+                    val rounded = kotlin.math.round(v * factor) / factor
+                    resolved = resolved.replaceRange(m.range, rounded.toString())
+                }
+            }
+        }
+
+        // Replace aggregate functions SUM/AVERAGE/AVG/MIN/MAX/MEDIAN/COUNT
+        val fnRegex = Regex("(SUM|AVERAGE|AVG|MIN|MAX|MEDIAN|COUNT)\\(([^()]+)\\)", RegexOption.IGNORE_CASE)
+        guard = 0
         while (fnRegex.containsMatchIn(resolved) && guard < 16) {
             guard++
             resolved = fnRegex.replace(resolved) { m ->
@@ -158,6 +198,13 @@ object SpreadsheetEngine {
                     "AVERAGE", "AVG" -> if (nums.isEmpty()) 0.0 else nums.sum() / nums.size
                     "MIN" -> nums.minOrNull() ?: 0.0
                     "MAX" -> nums.maxOrNull() ?: 0.0
+                    "MEDIAN" -> {
+                        if (nums.isEmpty()) 0.0 else {
+                            val sorted = nums.sorted()
+                            val mid = sorted.size / 2
+                            if (sorted.size % 2 == 0) (sorted[mid - 1] + sorted[mid]) / 2.0 else sorted[mid]
+                        }
+                    }
                     "COUNT" -> nums.size.toDouble()
                     else -> 0.0
                 }
