@@ -237,7 +237,7 @@ fun LiquidGlassIconOrb(
     modifier: Modifier = Modifier,
     tint: Color = MaterialTheme.colorScheme.onSurface,
     active: Boolean = false,
-    size: Dp = 46.dp,
+    size: Dp = 48.dp,
 ) {
     val haptics = LocalHapticFeedback.current
     val appearance = LocalLuminaAppearance.current
